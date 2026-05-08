@@ -1,5 +1,15 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-class UserRequest(BaseModel):
-    username: str = Field(..., ge=0, le=255)
-    password: str = Field(..., ge=0, le=255)
+class UserLogin(BaseModel):
+    username: str = Field(..., min_length=0, max_length=255)
+    password: str = Field(..., min_length=0, max_length=255)
+
+class UserResponse(BaseModel):
+    id: int = Field(..., ge=0)
+    username: str = Field(..., min_length=0, max_length=255)
+    is_active: str = Field(False)
+    model_config = ConfigDict(from_attributes=True)
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
