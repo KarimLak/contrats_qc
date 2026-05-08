@@ -5,7 +5,6 @@ from app.database import get_db
 from app.schemas import UserLogin, UserRegister, UserResponse
 from app.user import UserService, get_user_service
 
-
 router = APIRouter(prefix='/auth')
 
 @router.post('/register', response_model=UserResponse)
