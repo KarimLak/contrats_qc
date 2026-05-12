@@ -15,11 +15,17 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return pwd_context.verify(password, hashed)
 
-def create_token(data: dict) -> str:
+def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + datetime.timedelta(minutes=os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES'))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, os.getenv('SECRET_KEY'), os.getenv('ALGORITHM'))
+
+def create_refresh_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + datetime.timedelta(days=os.getenv('REFRESH_TOKEN_EXPIRE_DAYS'))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, os.getenv('SECRET_KEY')), os.getenv('ALGORITHM')
 
 def verify_token(token: str) -> str:
     try:
