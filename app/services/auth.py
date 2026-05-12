@@ -6,6 +6,8 @@ from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 
+from app.schemas.user import RefreshRequest
+
 load_dotenv() 
 pwd_context = CryptContext(schemes=["bcrypt"])
 
@@ -27,7 +29,7 @@ def create_refresh_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, os.getenv('SECRET_KEY')), os.getenv('ALGORITHM')
 
-def verify_token(token: str) -> str:
+def verify_token(token: str, expected_type: str = "access") -> str:
     try:
         payload = jwt.decode(token, os.getenv('SECRET_KEY'), os.getenv('ALGORITHM'))
         username = payload.get("sub")
