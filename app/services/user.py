@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.services.auth import create_token, hash_password, verify_password
-from app.models.models import User
-from app.schemas.schemas import TokenResponse, UserLogin, UserRegister, UserResponse
+from app.models.user import User
+from app.schemas.user import TokenResponse, UserLogin, UserRegister, UserResponse
 
 
 class UserService:
