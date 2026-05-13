@@ -27,12 +27,8 @@ class UserService:
         refresh_token = create_refresh_token({"sub": user.username})
         return TokenResponse(access_token=access_token, refresh_token=refresh_token)
     
-    def refresh_token(payload: RefreshRequest) -> TokenResponse:
-        username = verify_token(payload.refresh_token)
-        if not username:
-            raise HTTPException(status=500, detail='logout')
-        access_token = create_access_token({"sub": username})
-        return TokenResponse(acess_token=access_token, refresh_token=payload.refresh_token)
+    def logout(payload: TokenResponse, db: Session):
+        db.add()
         
 
 def get_user_service() -> UserService:

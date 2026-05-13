@@ -15,12 +15,3 @@ class UserResponse(BaseModel):
     email: str = Field(..., min_length=0, max_length=255)
     is_active: str = Field(False)
     model_config = ConfigDict(from_attributes=True)
-
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
-    token_type: str = "bearer"

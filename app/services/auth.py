@@ -7,6 +7,7 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 
 from app.schemas.user import RefreshRequest
+from auth_v2.app.schemas.token import TokenResponse
 
 load_dotenv() 
 pwd_context = CryptContext(schemes=["bcrypt"])
@@ -28,6 +29,13 @@ def create_refresh_token(data: dict) -> str:
     expire = datetime.utcnow() + datetime.timedelta(days=os.getenv('REFRESH_TOKEN_EXPIRE_DAYS'))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, os.getenv('SECRET_KEY')), os.getenv('ALGORITHM')
+
+def refresh_token(payload: RefreshRequest) -> TokenResponse:
+    username = verify_token(payload.refresh_token)
+    if not username:
+        raise HTTPException(status=500, detail='logout')
+    access_token = create_access_token({"sub": username})
+    return TokenResponse(acess_token=access_token, refresh_token=payload.refresh_token)
 
 def verify_token(token: str, expected_type: str = "access") -> str:
     try:

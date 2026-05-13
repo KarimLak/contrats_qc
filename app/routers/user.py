@@ -27,3 +27,5 @@ def get_all(username: str = Depends(get_current_user), db: Session = Depends(get
     if not users:
         raise HTTPException(status_code=500, detail= "Users not found")
     return users
+
+
