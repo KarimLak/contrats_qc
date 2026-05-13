@@ -1,10 +1,11 @@
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.services.auth import create_access_token, create_refresh_token, hash_password, verify_password, verify_token
 from app.models.user import User
 from app.schemas.user import RefreshRequest, TokenResponse, UserLogin, UserRegister, UserResponse
+from auth_v2.app.models.blacklist import BlackList
 
 
 class UserService:
@@ -28,8 +29,15 @@ class UserService:
         return TokenResponse(access_token=access_token, refresh_token=refresh_token)
     
     def logout(payload: TokenResponse, db: Session):
-        db.add()
-        
+        existing = db.execute(select(BlackList).where(or_(BlackList.access_token == payload.access_token, 
+                                                          BlackList.refresh_token == payload.refresh_token)))
+        if existing:
+            raise HTTPException(status_code=500, detail="Token already deleted")
+        blacklist = BlackList(access_token = payload.access_token, refresh_token = payload.refresh_token)
+        db.add(blacklist)
+        db.commit()
+        db.refresh(blacklist)
+
 
 def get_user_service() -> UserService:
     return UserService()
