@@ -34,7 +34,6 @@ class UserService:
         access_token = create_access_token({"sub": username})
         return TokenResponse(acess_token=access_token, refresh_token=payload.refresh_token)
         
-        
 
 def get_user_service() -> UserService:
     return UserService()
