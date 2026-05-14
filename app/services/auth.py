@@ -8,9 +8,9 @@ from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
 from app.schemas.user import RefreshRequest
-from auth_v2.app.database import get_db
-from auth_v2.app.schemas.token import TokenResponse
-from auth_v2.app.services.blacklist import is_black_list_token
+from app.database import get_db
+from app.schemas.token import TokenResponse
+from app.services.blacklist import is_black_list_token
 
 load_dotenv() 
 pwd_context = CryptContext(schemes=["bcrypt"])
