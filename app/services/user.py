@@ -38,7 +38,6 @@ class UserService:
         db.commit()
         db.refresh(blacklist)
 
-
 def get_user_service() -> UserService:
     return UserService()
         

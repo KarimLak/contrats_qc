@@ -55,4 +55,4 @@ def verify_token(token: str, expected_type: str = "access") -> str:
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
-    return verify_token(token, db)
+    return verify_token(token)
