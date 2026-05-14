@@ -7,7 +7,7 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
-from app.schemas.user import RefreshRequest
+from app.schemas.token import RefreshRequest
 from app.database import get_db
 from app.schemas.token import TokenResponse
 from app.services.blacklist import is_black_list_token

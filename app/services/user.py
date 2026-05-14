@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.services.auth import create_access_token, create_refresh_token, hash_password, verify_password, verify_token
 from app.models.user import User
-from app.schemas.user import RefreshRequest, TokenResponse, UserLogin, UserRegister, UserResponse
+from app.schemas.user import UserLogin, UserRegister, UserResponse
+from app.schemas.token import RefreshRequest, TokenResponse
 from app.models.blacklist import BlackList
 
 
