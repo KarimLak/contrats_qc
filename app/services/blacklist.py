@@ -2,8 +2,8 @@ from fastapi import Depends
 from niquests import Session
 from sqlalchemy import or_, select
 
-from auth_v2.app.database import get_db
-from auth_v2.app.models.blacklist import BlackList
+from app.database import get_db
+from app.models.blacklist import BlackList
 
 
 def is_black_list_token(token: str, db : Session = Depends(get_db)) -> bool:
