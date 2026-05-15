@@ -25,13 +25,13 @@ def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES')))
     to_encode.update({"exp": expire, "type": os.getenv("ACCESS_TYPE")})
-    return jwt.encode(to_encode, os.getenv('SECRET_KEY'), os.getenv('ALGORITHM'))
+    return jwt.encode(to_encode, os.getenv('SECRET_KEY'), algorithm=os.getenv('ALGORITHM'))
 
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=int(os.getenv('REFRESH_TOKEN_EXPIRE_DAYS')))
     to_encode.update({"exp": expire, "type": os.getenv("REFRESH_TYPE")})
-    return jwt.encode(to_encode, os.getenv('SECRET_KEY')), os.getenv('ALGORITHM')
+    return jwt.encode(to_encode, os.getenv('SECRET_KEY'), algorithm=os.getenv('ALGORITHM'))
 
 def refresh_token(payload: RefreshRequest) -> TokenResponse:
     username = verify_token(payload.refresh_token, os.getenv("REFRESH_TYPE"))
@@ -44,7 +44,7 @@ def verify_token(token: str, expected_type: str = "access") -> str:
     try:
         if (is_black_list_token(token)):
             return HTTPException(status=500, detail="Invalid token")
-        payload = jwt.decode(token, os.getenv('SECRET_KEY'), os.getenv('ALGORITHM'))
+        payload = jwt.decode(token, os.getenv('SECRET_KEY'), algorithm=os.getenv('ALGORITHM'))
         username = payload.get("sub")
         type = payload.get("type")
         if not username or type != expected_type:
