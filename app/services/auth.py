@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException
@@ -23,13 +23,13 @@ def verify_password(password: str, hashed: str) -> bool:
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + datetime.timedelta(minutes=int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES')))
+    expire = datetime.utcnow() + timedelta(minutes=int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES')))
     to_encode.update({"exp": expire, "type": os.getenv("ACCESS_TYPE")})
     return jwt.encode(to_encode, os.getenv('SECRET_KEY'), os.getenv('ALGORITHM'))
 
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + datetime.timedelta(days=int(os.getenv('REFRESH_TOKEN_EXPIRE_DAYS')))
+    expire = datetime.utcnow() + timedelta(days=int(os.getenv('REFRESH_TOKEN_EXPIRE_DAYS')))
     to_encode.update({"exp": expire, "type": os.getenv("REFRESH_TYPE")})
     return jwt.encode(to_encode, os.getenv('SECRET_KEY')), os.getenv('ALGORITHM')
 

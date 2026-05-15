@@ -11,7 +11,7 @@ from app.models.blacklist import BlackList
 
 class UserService:
 
-    def register(payload: UserRegister, db: Session) -> UserResponse:
+    def register(self, payload: UserRegister, db: Session) -> UserResponse:
         existing = db.execute(select(User).where(User.email == payload.email)).scalars().one_or_none()
         if existing:
             raise HTTPException(status_code=500, detail="User already exists")
@@ -21,15 +21,15 @@ class UserService:
         db.refresh(user)
         return user
     
-    def login(payload: UserLogin, db: Session) -> TokenResponse:
-        user = db.execute(select(User).where(User.email == payload.email)).scalars().one_or_none()
+    def login(self, payload: UserLogin, db: Session) -> TokenResponse:
+        user = db.execute(select(User).where(User.username == payload.username)).scalars().one_or_none()
         if not user or (verify_password(payload.password, user.hashed_password) is False):
             raise HTTPException(status_code= 500, detail= "Wrong information")
         access_token = create_access_token({"sub": user.username})
         refresh_token = create_refresh_token({"sub": user.username})
         return TokenResponse(access_token=access_token, refresh_token=refresh_token)
     
-    def logout(payload: TokenResponse, db: Session):
+    def logout(self, payload: TokenResponse, db: Session):
         existing = db.execute(select(BlackList).where(or_(BlackList.access_token == payload.access_token, 
                                                           BlackList.refresh_token == payload.refresh_token))).scalars().one_or_none()
         if existing:

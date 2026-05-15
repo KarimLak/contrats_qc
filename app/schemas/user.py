@@ -13,5 +13,5 @@ class UserResponse(BaseModel):
     id: int = Field(..., ge=0)
     username: str = Field(..., min_length=0, max_length=255)
     email: str = Field(..., min_length=0, max_length=255)
-    is_active: str = Field(False)
+    is_active: bool = Field(False)
     model_config = ConfigDict(from_attributes=True)
