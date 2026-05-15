@@ -36,14 +36,14 @@ def create_refresh_token(data: dict) -> str:
 def refresh_token(payload: RefreshRequest) -> TokenResponse:
     username = verify_token(payload.refresh_token, os.getenv("REFRESH_TYPE"))
     if not username:
-        raise HTTPException(status=500, detail='logout')
+        raise HTTPException(status_code=500, detail='logout')
     access_token = create_access_token({"sub": username})
-    return TokenResponse(acess_token=access_token, refresh_token=payload.refresh_token)
+    return TokenResponse(access_token=access_token, refresh_token=payload.refresh_token)
 
 def verify_token(token: str, expected_type: str = "access") -> str:
     try:
         if (is_black_list_token(token)):
-            return HTTPException(status=500, detail="Invalid token")
+            return HTTPException(status_code=500, detail="Invalid token")
         payload = jwt.decode(token, os.getenv('SECRET_KEY'), algorithm=os.getenv('ALGORITHM'))
         username = payload.get("sub")
         type = payload.get("type")
