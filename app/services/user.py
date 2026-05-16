@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.repositories.user import create_user, get_user
 from app.services.token import create_access_token, create_refresh_token, verify_token
 from app.services.password import hash_password, verify_password
 from app.models.user import User
@@ -9,19 +10,14 @@ from app.schemas.user import UserLogin, UserRegister, UserResponse
 from app.schemas.token import RefreshRequest, TokenResponse
 from app.models.blacklist import BlackList
 
-
 def register(payload: UserRegister, db: Session) -> UserResponse:
-    existing = db.execute(select(User).where(User.email == payload.email)).scalars().one_or_none()
+    existing = get_user(payload.username)
     if existing:
         raise HTTPException(status_code=500, detail="User already exists")
-    user = User(username= payload.username, email = payload.email, hashed_password = hash_password(payload.password))
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-    
+    return create_user(payload.username, payload.email, hash_password(payload.password), db)
+   
 def login(payload: UserLogin, db: Session) -> TokenResponse:
-    user = db.execute(select(User).where(User.username == payload.username)).scalars().one_or_none()
+    user = get_user(payload.username, db)
     if not user or (verify_password(payload.password, user.hashed_password) is False):
         raise HTTPException(status_code= 500, detail= "Wrong information")
     access_token = create_access_token({"sub": user.username})
