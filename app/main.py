@@ -5,6 +5,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from app.routers import auth, user
 from slowapi import Limiter
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import limiter
 from app.database import create_tables
@@ -17,6 +18,14 @@ app.include_router(user.router, prefix='/v1')
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 create_tables()
 
