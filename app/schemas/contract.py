@@ -1,6 +1,14 @@
 from typing import Optional
 from pydantic import BaseModel, Field
 
+class Document(BaseModel):
+    titre: str = Field(..., max_length=255)
+    type: str = Field(..., max_length=255)
+    contenu: str = Field(..., max_length=255)
+    langue: str = Field(..., max_length=255)
+    dimension: str = Field(..., max_length=255)
+    nombre_page: str = Field(..., max_length=255)
+    visulaiser: str = Field(..., max_length=255)
 
 class ContractBase(BaseModel):
 
@@ -20,7 +28,7 @@ class ContractBase(BaseModel):
 
     # ── Classification ────────────────────────────────────────────────────────
     classifications: list[str]  = Field(default_factory=list)
-    documents:       list[dict] = Field(default_factory=list)
+    documents:       list[Document] = Field(default_factory=list)
 
     # ── Geography & trade agreements ──────────────────────────────────────────
     region:      str = Field(..., max_length=255)
