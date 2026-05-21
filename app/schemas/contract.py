@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 class ContractFilter(BaseModel):
@@ -78,5 +78,13 @@ class ContractBase(BaseModel):
 
 class ContractResponse(ContractBase):
     id: int = Field(..., ge=0)
+
+    model_config = {"from_attributes": True}
+
+
+class ContractFilterResponse(BaseModel):
+    skip: int = Field(0, ge=0)
+    limit: int = Field(20, ge=1, le=100)
+    contracts: Optional[List[ContractResponse]]
 
     model_config = {"from_attributes": True}
