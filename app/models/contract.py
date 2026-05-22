@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import Boolean, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -39,7 +39,7 @@ class Contract(Base):
 
     # ── Classification ─────────────────────────────────
     classifications: Mapped[list] = mapped_column(String(1000), default=list)
-    documents:       Mapped[list] = mapped_column(Document, default=list)
+    documents:       Mapped[list] = mapped_column(JSON, default=list)
 
     # ── Geography & trade agreements ──────────────────────────────────────────
     region:      Mapped[str]           = mapped_column(String(255),  nullable=False)
