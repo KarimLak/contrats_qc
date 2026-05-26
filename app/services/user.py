@@ -15,7 +15,7 @@ def register(payload: UserRegister, db: Session) -> UserResponse:
     existing = get_user(payload.username, db)
     if existing:
         raise HTTPException(status_code=500, detail="User already exists")
-    return create_user(payload.username, payload.email, hash_password(payload.password), db)
+    return create_user(payload.username, payload.email, hash_password(payload.password), payload.roles, db)
    
 def login(payload: UserLogin, db: Session) -> TokenResponse:
     user = get_user(payload.username, db)
