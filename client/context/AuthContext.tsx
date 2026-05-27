@@ -2,15 +2,25 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { authApi, User } from "../api/auth";
 
+export type Subscription = "user" | "pro" | "enterprise";
+
 interface AuthContextType {
-  user:     User | null;
-  loading:  boolean;
+  user:         User | null;
+  loading:      boolean;
+  subscription: Subscription;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout:   () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+function deriveSubscription(user: User | null): Subscription {
+  if (!user?.roles?.length) return "user";
+  if (user.roles.includes("enterprise")) return "enterprise";
+  if (user.roles.includes("pro") || user.roles.includes("admin")) return "pro";
+  return "user";
+}
 
 let _token: string | null = null;
 
@@ -44,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, subscription: deriveSubscription(user), login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -88,6 +88,7 @@ export interface Contract {
 export interface ContractFilterResponse {
   skip:      number;
   limit:     number;
+  total:     number;
   contracts: Contract[] | null;
 }
 

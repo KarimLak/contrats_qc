@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import PublicNav from "@/components/PublicNav";
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
@@ -158,28 +159,16 @@ export default function Home() {
       `}</style>
 
       {/* NAV */}
-      <nav className={`nav${scrolled ? " scrolled" : ""}`}>
-        <Link href="/" className="brand"><div className="mark">C</div>contrats_qc</Link>
-        <ul className="nav-links">
-          <li><Link href="/explorer">Explorateur</Link></li>
-          <li><Link href="/pricing">Tarifs</Link></li>
-          <li><Link href="/about">À propos</Link></li>
-        </ul>
-        <div className="nav-end">
-          <Link href="/login" className="btn-o">Se connecter</Link>
-          <Link href="/register" className="btn-t">S'inscrire gratuitement</Link>
-        </div>
-      </nav>
+      <PublicNav />
 
       {/* HERO */}
       <section className="hero">
         <div className="blob b1" /><div className="blob b2" /><div className="dots" />
         <div className="hi">
-          <div className="badge"><span className="bdot" />Appels d'offres publics — Québec</div>
           <h1>Trouvez les contrats<br />gouvernementaux <span className="tc">faits pour vous</span></h1>
           <p className="hsub">Accédez à plus de 2 000 appels d'offres du SEAO en temps réel. Filtrez, analysez et identifiez les opportunités adaptées à votre secteur et région.</p>
           <div className="hbtns">
-            <Link href="/explorer" className="bh">Explorer les contrats →</Link>
+            <Link href="/register" className="bh">Explorer les contrats →</Link>
             <Link href="/register" className="bho">Créer un compte gratuit</Link>
           </div>
           <div className="trust">
@@ -188,7 +177,7 @@ export default function Home() {
                 <div key={l} className="av" style={{background:c}}>{l}</div>
               ))}
             </div>
-            <span>Rejoignez des centaines d'entreprises québécoises</span>
+            <span>Rejoignez des dizaines d'entreprises québécoises</span>
           </div>
         </div>
       </section>
@@ -211,7 +200,7 @@ export default function Home() {
             </div>
             <div>
               <p style={{fontSize:16,lineHeight:1.8,color:"var(--text2)",marginBottom:16}}>Par manque de temps, de visibilité et d'outils adaptés, des milliers d'entreprises passent chaque année à côté d'opportunités considérables avec les organismes publics québécois.</p>
-              <p style={{fontSize:16,lineHeight:1.8,color:"var(--text2)"}}>Le SEAO publie des centaines d'appels d'offres chaque semaine. Mais les trouver, les comprendre et y répondre efficacement reste un défi pour la plupart des entreprises.</p>
+              <p style={{fontSize:16,lineHeight:1.8,color:"var(--text2)"}}>Le SEAO publie des dizaines d'appels d'offres chaque semaine. Mais les trouver, les comprendre et y répondre efficacement reste un défi pour la plupart des entreprises.</p>
             </div>
           </div>
           <div className="ig">
@@ -226,67 +215,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* TWO LEVERS */}
-      <section className="sec sw">
-        <div className="sin">
-          <div className="lvhd">
-            <span className="stag">Nos solutions</span>
-            <h2 className="sh2">Deux façons d'accéder aux contrats gouvernementaux</h2>
-            <p className="sp" style={{margin:"0 auto",maxWidth:520}}>Deux approches adaptées à des besoins distincts : un accompagnement stratégique par nos experts, ou une plateforme intelligente pour simplifier chaque étape.</p>
-          </div>
-          <div style={{display:"flex",justifyContent:"center",marginBottom:48}}>
-            <div className="tabs">
-              <button className={`tab${activeTab==="platform"?" on":""}`} onClick={()=>setActiveTab("platform")}>Plateforme</button>
-              <button className={`tab${activeTab==="consulting"?" on":""}`} onClick={()=>setActiveTab("consulting")}>Accompagnement</button>
-            </div>
-          </div>
-          {activeTab==="platform" && (
-            <div className="lg">
-              <div className="lc">
-                <div className="lch"><h3>Plateforme contrats_qc</h3><p>Les outils pour trouver et suivre les appels d'offres qui correspondent à votre profil.</p></div>
-                <div className="lcb">
-                  {[["Moteur de recherche SEAO","2 000+ contrats indexés et mis à jour en continu"],["Filtres avancés","Région, catégorie, type, organisation, dates"],["Fiche complète de chaque avis","Contacts, documents, accords, classifications"],["Profil d'entreprise personnalisé","Contrats classés selon vos secteurs et régions"],["Accès gratuit pour démarrer","Sans carte de crédit, sans engagement"]].map(([t,d])=>(
-                    <div className="li" key={t}><div className="lck">✓</div><div className="lit"><strong>{t}</strong> — {d}</div></div>
-                  ))}
-                  <div className="lcta"><Link href="/register" className="blv">Créer un compte →</Link></div>
-                </div>
-              </div>
-              <div className="lc">
-                <div className="lch tl"><h3>Plateforme Pro</h3><p>Fonctionnalités avancées pour les équipes sérieuses.</p></div>
-                <div className="lcb">
-                  {[["Alertes en temps réel","Notifié dès qu'un contrat correspond à votre profil"],["Tableau de bord analytique","Tendances, organisations actives, secteurs porteurs"],["Historique et suivi","Suivez les contrats qui vous intéressent"],["Export des données","CSV / JSON pour votre CRM ou vos processus internes"],["Support prioritaire","Réponse en moins de 24h"]].map(([t,d])=>(
-                    <div className="li" key={t}><div className="lck">✓</div><div className="lit"><strong>{t}</strong> — {d}</div></div>
-                  ))}
-                  <div className="lcta"><Link href="/pricing" className="blvo">Voir les tarifs →</Link></div>
-                </div>
-              </div>
-            </div>
-          )}
-          {activeTab==="consulting" && (
-            <div className="lg">
-              <div className="lc">
-                <div className="lch"><h3>Accompagnement expert</h3><p>Une équipe dédiée pour maximiser vos chances de décrocher des contrats gouvernementaux.</p></div>
-                <div className="lcb">
-                  {[["Équipe spécialisée assignée","Un conseiller dédié à votre entreprise"],["Identification des opportunités","Sélection des contrats adaptés à votre profil"],["Rédaction des soumissions","Accompagnement dans la préparation de vos dossiers"],["Représentation auprès des donneurs","Suivi et communication avec les organismes publics"],["Conseils par type de projet","Construction, services professionnels, approvisionnement"]].map(([t,d])=>(
-                    <div className="li" key={t}><div className="lck">✓</div><div className="lit"><strong>{t}</strong> — {d}</div></div>
-                  ))}
-                  <div className="lcta"><Link href="/contact" className="blv">Parler à un expert →</Link></div>
-                </div>
-              </div>
-              <div className="lc">
-                <div className="lch tl"><h3>Accès plateforme inclus</h3><p>L'accompagnement inclut un accès complet à la plateforme Pro.</p></div>
-                <div className="lcb">
-                  {[["Accès Pro complet","Toutes les fonctionnalités de la plateforme incluses"],["Revue mensuelle de portefeuille","Analyse de vos opportunités avec votre conseiller"],["Formation à la soumission","Apprenez les meilleures pratiques du marché public"],["Veille sectorielle personnalisée","Rapports réguliers sur votre marché cible"],["Alertes premium","Notifications avant la publication générale"]].map(([t,d])=>(
-                    <div className="li" key={t}><div className="lck">✓</div><div className="lit"><strong>{t}</strong> — {d}</div></div>
-                  ))}
-                  <div className="lcta"><Link href="/pricing" className="blvo">Voir les formules →</Link></div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* FEATURES */}
       <section className="sec sc">
         <div className="sin">
@@ -294,7 +222,7 @@ export default function Home() {
           <h2 className="sh2">Tout ce dont vous avez besoin</h2>
           <p className="sp">Une interface moderne construite sur les données ouvertes du SEAO, avec les outils que les entreprises québécoises méritent.</p>
           <div className="fg">
-            {[{i:"🔍",t:"Recherche avancée",d:"Filtrez par région, catégorie, type, organisation ou date de fermeture. Résultats instantanés."},{i:"📋",t:"Données complètes",d:"Description, documents, contacts, accords applicables et classifications pour chaque avis."},{i:"⚡",t:"Mis à jour en continu",d:"Les nouveaux avis du SEAO sont indexés quotidiennement. Aucune opportunité manquée."},{i:"🎯",t:"Pertinence personnalisée",d:"Définissez votre profil et voyez les contrats les plus pertinents pour vous en premier."},{i:"📊",t:"Vue d'ensemble",d:"Tendances, organisations actives, secteurs porteurs dans votre région cible."},{i:"🔒",t:"Accès sécurisé",d:"Authentification robuste, sessions sécurisées et protection de vos données."}].map(f=>(
+            {[{i:"v",t:"Recherche avancée",d:"Filtrez par région, catégorie, type, organisation ou date de fermeture. Résultats instantanés."},{i:"📋",t:"Données complètes",d:"Description, documents, contacts, accords applicables et classifications pour chaque avis."},{i:"⚡",t:"Mis à jour en continu",d:"Les nouveaux avis du SEAO sont indexés quotidiennement. Aucune opportunité manquée."},{i:"🎯",t:"Pertinence personnalisée",d:"Définissez votre profil et voyez les contrats les plus pertinents pour vous en premier."},{i:"📊",t:"Vue d'ensemble",d:"Tendances, organisations actives, secteurs porteurs dans votre région cible."},{i:"🔒",t:"Accès sécurisé",d:"Authentification robuste, sessions sécurisées et protection de vos données."}].map(f=>(
               <div className="fc" key={f.t}><div className="fi">{f.i}</div><h3>{f.t}</h3><p>{f.d}</p></div>
             ))}
           </div>
