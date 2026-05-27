@@ -222,8 +222,8 @@ export default function Home() {
           <h2 className="sh2">Tout ce dont vous avez besoin</h2>
           <p className="sp">Une interface moderne construite sur les données ouvertes du SEAO, avec les outils que les entreprises québécoises méritent.</p>
           <div className="fg">
-            {[{i:"v",t:"Recherche avancée",d:"Filtrez par région, catégorie, type, organisation ou date de fermeture. Résultats instantanés."},{i:"📋",t:"Données complètes",d:"Description, documents, contacts, accords applicables et classifications pour chaque avis."},{i:"⚡",t:"Mis à jour en continu",d:"Les nouveaux avis du SEAO sont indexés quotidiennement. Aucune opportunité manquée."},{i:"🎯",t:"Pertinence personnalisée",d:"Définissez votre profil et voyez les contrats les plus pertinents pour vous en premier."},{i:"📊",t:"Vue d'ensemble",d:"Tendances, organisations actives, secteurs porteurs dans votre région cible."},{i:"🔒",t:"Accès sécurisé",d:"Authentification robuste, sessions sécurisées et protection de vos données."}].map(f=>(
-              <div className="fc" key={f.t}><div className="fi">{f.i}</div><h3>{f.t}</h3><p>{f.d}</p></div>
+            {[{t:"Recherche avancée",d:"Filtrez par région, catégorie, type, organisation ou date de fermeture. Résultats instantanés."},{t:"Données complètes",d:"Description, documents, contacts, accords applicables et classifications pour chaque avis."},{t:"Mis à jour en continu",d:"Les nouveaux avis du SEAO sont indexés quotidiennement. Aucune opportunité manquée."},{t:"Pertinence personnalisée",d:"Définissez votre profil et voyez les contrats les plus pertinents pour vous en premier."},{t:"Vue d'ensemble",d:"Tendances, organisations actives, secteurs porteurs dans votre région cible."},{t:"Accès sécurisé",d:"Authentification robuste, sessions sécurisées et protection de vos données."}].map(f=>(
+              <div className="fc" key={f.t}><h3>{f.t}</h3><p>{f.d}</p></div>
             ))}
           </div>
         </div>
