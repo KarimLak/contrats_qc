@@ -1,7 +1,6 @@
 from enum import Enum
 
 class TenderType(str, Enum):
-    TOUS_LES_TYPES_D_AVIS = "all"
     AVIS_APPEL_INTERET = "Avis d’appel d’intérêt"
     AVIS_APPEL_OFFRES = "Avis d’appel d’offres"
     AVIS_APPEL_OFFRES_REGIONALISE = "Avis d’appel d’offres régionalisé"
@@ -34,7 +33,6 @@ class TenderType(str, Enum):
     DOCUMENTS_NORMATIFS = "Documents normatifs"
 
 class TenderStatus(str, Enum):
-    TOUS_LES_STATUTS = "all"
     PUBLIE = "Publié"
     ANNULE = "Annulé"
     EN_ATTENTE_RESULTATS_OUVERTURE = "En attente des résultats d’ouverture"
@@ -44,7 +42,6 @@ class TenderStatus(str, Enum):
     TERMINE = "Terminé"
 
 class TenderRegion(str, Enum):
-    TOUTES_LES_REGIONS = "all"
     ABITIBI_TEMISCAMINGUE = "Abitibi-Témiscamingue"
     BAS_SAINT_LAURENT = "Bas-Saint-Laurent"
     CAPITALE_NATIONALE = "Capitale-Nationale"
@@ -64,7 +61,6 @@ class TenderRegion(str, Enum):
     SAGUENAY_LAC_SAINT_JEAN = "Saguenay–Lac-Saint-Jean"
 
 class TenderNature(str, Enum):
-    TOUS_LES_TYPES = "all"
     APPROVISIONNEMENT_BIENS = "Approvisionnement (biens)"
     AUTRES = "Autres"
     CONCESSION = "Concession"

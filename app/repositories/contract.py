@@ -7,18 +7,19 @@ from sqlalchemy import asc, desc
 
 def get_contracts_list(filters: dict, skip: int, limit: int, sort_by: ContractSortField, sort_order: SortOrder, db: Session) -> List[Contract]:
     query = select(Contract)
-    for k, i in filters.items():
+    for k, v in filters.items():
         column = getattr(Contract, k, None)
+        if column is None or v is None:
+            continue
 
-        if column is not None:
-            if (i=='all'):
+        if isinstance(v, list):
+            if not v:
                 continue
-            query = query.where(column==i)
+            query = query.where(column.in_(v))
+        else:
+            query = query.where(column == v)
 
     order_column = getattr(Contract, sort_by.value)
     order_func = desc if sort_order == SortOrder.desc else asc
-    query = query.order_by(order_func(order_column))
-
-    query = query.offset(skip).limit(limit)
-    contracts = db.execute(query).scalars().all()
-    return contracts
+    query = query.order_by(order_func(order_column)).offset(skip).limit(limit)
+    return db.execute(query).scalars().all()

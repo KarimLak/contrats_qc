@@ -13,7 +13,7 @@ router = APIRouter(prefix='/contract')
 
 @router.get('/', response_model=ContractFilterResponse)
 @limiter.limit("10/minute")
-def list_contracts(request: Request, filter: ContractFilter = Depends(), 
+def list_contracts(request: Request, filter: ContractFilter = Query(), 
                    skip: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100), 
                    sort_by: ContractSortField = Query(ContractSortField.date_publication),
                    sort_order: SortOrder = Query(SortOrder.desc), 
