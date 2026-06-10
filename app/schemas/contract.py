@@ -3,6 +3,9 @@ from pydantic import BaseModel, Field
 from enum import Enum
 from typing import Optional
 
+from auth_v2.app.type.tender import TenderNature, TenderRegion, TenderStatus, TenderType
+
+
 class ContractSortField(str, Enum):
     type_avis = "type_avis"
     statut = "statut"
@@ -17,13 +20,13 @@ class SortOrder(str, Enum):
     desc = "desc"
 
 class ContractFilter(BaseModel):
-    type_avis: Optional[str] = Field(None, max_length=100)  
-    statut: Optional[str] = Field(None, max_length=100)   
-    nature_contrat: Optional[str] = Field(None, max_length=255)     
+    type_avis: Optional[TenderType] = Field(None, max_length=255)  
+    statut: Optional[TenderStatus] = Field(None, max_length=255)   
+    nature_contrat: Optional[TenderNature] = Field(None, max_length=255)     
     categorie: Optional[str] = Field(None, max_length=500)        
-    region: Optional[str] = Field(None, max_length=255)
+    region: Optional[TenderRegion] = Field(None, max_length=255)
     date_publication: Optional[str] = Field(None, max_length=100)
-    date_fermeture: Optional[str] = Field(default=None, max_length=255)
+    date_fermeture: Optional[str] = Field(default=None, max_length=100)
 
 class Document(BaseModel):
     titre: Optional[str] = Field(default=None, max_length=500)

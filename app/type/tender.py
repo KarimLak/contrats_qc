@@ -1,6 +1,6 @@
 from enum import Enum
 
-class TypeAvis(str, Enum):
+class TenderType(str, Enum):
     TOUS_LES_TYPES_D_AVIS = "all"
     AVIS_APPEL_INTERET = "Avis d’appel d’intérêt"
     AVIS_APPEL_OFFRES = "Avis d’appel d’offres"
@@ -33,7 +33,7 @@ class TypeAvis(str, Enum):
     )
     DOCUMENTS_NORMATIFS = "Documents normatifs"
 
-class StatutAvis(str, Enum):
+class TenderStatus(str, Enum):
     TOUS_LES_STATUTS = "all"
     PUBLIE = "Publié"
     ANNULE = "Annulé"
@@ -43,7 +43,7 @@ class StatutAvis(str, Enum):
     LISTE_DISPONIBLE = "Liste disponible"
     TERMINE = "Terminé"
 
-class Region(str, Enum):
+class TenderRegion(str, Enum):
     TOUTES_LES_REGIONS = "all"
     ABITIBI_TEMISCAMINGUE = "Abitibi-Témiscamingue"
     BAS_SAINT_LAURENT = "Bas-Saint-Laurent"
@@ -62,3 +62,92 @@ class Region(str, Enum):
     NORD_DU_QUEBEC = "Nord-du-Québec"
     OUTAOUAIS = "Outaouais"
     SAGUENAY_LAC_SAINT_JEAN = "Saguenay–Lac-Saint-Jean"
+
+class TenderNature(str, Enum):
+    TOUS_LES_TYPES = "all"
+    APPROVISIONNEMENT_BIENS = "Approvisionnement (biens)"
+    AUTRES = "Autres"
+    CONCESSION = "Concession"
+    SERVICES= "Services"
+    PARTENARIAT_SERVICES = "Partenariat"
+    TRAVAUX_DE_CONSTRUCTION = "Travaux de construction"
+    VENTE_DE_BIENS_IMMEUBLES = "Ventes de biens immeubles"
+    VENTE_DE_BIENS_MEUBLES = "Ventes de biens meubles"
+
+class TenderCategory(str, Enum):
+    AEROSPATIALE = "Aérospatiale"
+    ALIMENTATION = "Alimentation"
+    AMEUBLEMENT = "Ameublement"
+    ARMEMENT = "Armement"
+    COMMUNICATION_DETECTION_FIBRES_OPTIQUES = "Communication, détection et fibres optiques"
+    CONSTRUCTIONS_PREFABRIQUEES = "Constructions préfabriquées"
+    COSMETIQUES_ARTICLES_TOILETTE = "Cosmétiques et articles de toilette"
+    ENERGIE = "Énergie"
+    ENTRETIEN_EQUIPEMENT_BUREAU_INFORMATIQUE = "Entretien d'équipement de bureau et d'informatique"
+    EQUIPEMENT_INCENDIE_SECURITE_PROTECTION = (
+        "Équipement de lutte contre l'incendie, de sécurité et de protection"
+    )
+    EQUIPEMENT_TRANSPORT_PIECES_RECHANGE = "Équipement de transport et pièces de rechange"
+    EQUIPEMENT_INDUSTRIEL = "Équipement industriel"
+    FOURNITURE_EQUIPEMENT_MEDICAUX_PHARMACEUTIQUES = (
+        "Fourniture et équipement médicaux et produits pharmaceutiques"
+    )
+    INSTRUMENTS_SCIENTIFIQUES = "Instruments scientifiques"
+    INTEGRATION_SYSTEMES = "Intégration de systèmes"
+    MACHINERIE_OUTILS = "Machinerie et outils"
+    MARINE = "Marine"
+    MATERIAUX_CONSTRUCTION = "Matériaux de construction"
+    MATERIEL_BUREAU = "Matériel de bureau"
+    MATERIEL_CLIMATISATION_REFRIGERATION = "Matériel de climatisation et de réfrigération"
+    MATERIEL_INFORMATIQUE_LOGICIEL = "Matériel informatique et logiciel"
+    MOTEURS_TURBINES_COMPOSANTS = "Moteurs, turbines, composants et accessoires connexes"
+    PAPETERIE_FOURNITURES_BUREAU = "Papeterie et fournitures de bureau"
+    PREPARATION_ALIMENTAIRE_EQUIPEMENT_SERVICE = "Préparation alimentaire et équipement de service"
+    PRODUITS_DIVERS = "Produits divers"
+    PRODUITS_ELECTRIQUES_ELECTRONIQUES = "Produits électriques et électroniques"
+    PRODUITS_SPECIALITES_CHIMIQUES = "Produits et spécialités chimiques"
+    PRODUITS_FINIS = "Produits finis"
+    PUBLICATIONS_FORMULAIRES_ARTICLES_PAPIER = "Publications, formulaires et articles en papier"
+    TEXTILES_VETEMENTS = "Textiles et vêtements"
+    VEHICULES_SPECIAUX = "Véhicules spéciaux"
+    INDETERMINE = "Indéterminé"
+    CONCESSION = "Concession"
+    PARTENARIAT = "Partenariat"
+    CONTROLE_QUALITE_ESSAIS_INSPECTIONS = (
+        "Contrôle de la qualité, essais et inspections et services de représentants techniques"
+    )
+    ENTRETIEN_REPARATION_MODIFICATION = (
+        "Entretien, réparation, modification, réfection et installation de biens et d'équipement"
+    )
+    ETUDES_SPECIALES_ANALYSES = "Études spéciales et analyses"
+    EXPLOITATION_INSTALLATIONS_GOUVERNEMENTALES = "Exploitation des installations gouvernementales"
+    LOCATION_INSTALLATIONS_IMMOBILIERES = (
+        "Location à bail ou location d'installations immobilières"
+    )
+    LOCATION_EQUIPEMENT = "Location à bail/Location d'équipement"
+    RECHERCHE_DEVELOPPEMENT = "Recherche et développement (R et D)"
+    SERVICES_ARCHITECTURE_INGENIERIE = "Services d'architecture et d'ingénierie"
+    SERVICES_COMMUNICATION_PHOTO_CARTO_IMPRESSION = (
+        "Services de communication, de photographie, de cartographie, d'impression et de publication"
+    )
+    SERVICES_GARDE = "Services de garde et autres services connexes"
+    SERVICES_RESSOURCES_NATURELLES = "Services de ressources naturelles"
+    SERVICES_SANTE_SOCIAUX = "Services de santé et services sociaux"
+    SERVICES_SOUTIEN_PROFESSIONNEL_ADMINISTRATIF = (
+        "Services de soutien professionnel et administratif et services de soutien à la gestion"
+    )
+    SERVICES_TRANSPORT_VOYAGE_DEMENAGEMENT = "Services de transport, de voyage et de déménagement"
+    SERVICES_ENVIRONNEMENTAUX = "Services environnementaux"
+    SERVICES_FINANCIERS = "Services financiers et autres services connexes"
+    SERVICES_PEDAGOGIQUES_FORMATION = "Services pédagogiques et formation"
+    SERVICES_PUBLICS = "Services publics"
+    TRAITEMENT_INFORMATION_TELECOMMUNICATIONS = (
+        "Traitement de l'information et services de télécommunications connexes"
+    )
+    AUTRES_TRAVAUX_CONSTRUCTION = "Autres travaux de construction"
+    BATIMENTS = "Bâtiments"
+    OUVRAGES_GENIE_CIVIL = "Ouvrages de génie civil"
+    VENTE_BIENS_IMMEUBLES = "Vente de biens immeubles"
+    VENTE_BIENS_MEUBLES = "Vente de biens meubles"
+ 
+ 
