@@ -16,9 +16,9 @@ def register(payload: UserRegister, db: Session) -> UserResponse:
     existing = get_user(payload.username, db)
     if existing:
         raise HTTPException(status_code=500, detail="User already exists")
-    business_id = last_business_id(db) + 1
-    create_business_profile(db, payload.business)
-    return create_user(payload.username, payload.email, hash_password(payload.password), payload.roles, payload.business.id, db)
+    business_id = last_business_id(db) + 1 if last_business_id(db) else 1
+    create_business_profile(db, business_id, payload.business)
+    return create_user(payload.username, payload.email, hash_password(payload.password), payload.roles, business_id, db)
    
 def login(payload: UserLogin, db: Session) -> TokensResponse:
     user = get_user(payload.username, db)
