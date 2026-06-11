@@ -6,8 +6,8 @@ from app.models.user import User
 def get_user(username: str, db: Session) -> User:
     return db.execute(select(User).where(User.username == username)).scalars().one_or_none()
 
-def create_user(username: str, email: str, hashed_password: str, roles: list[str], db: Session) -> User:
-    user = User(username= username, email = email, hashed_password = hashed_password, roles = roles)
+def create_user(username: str, email: str, hashed_password: str, roles: list[str], business_id: str, db: Session) -> User:
+    user = User(username= username, email = email, hashed_password = hashed_password, roles = roles, business_id = business_id)
     db.add(user)
     db.commit()
     db.refresh(user)

@@ -10,12 +10,15 @@ from app.models.user import User
 from app.schemas.user import UserLogin, UserRegister, UserResponse
 from app.schemas.token import LogoutRequest, TokenResponse, TokensResponse
 from app.models.blacklist import BlackList
+from app.repositories.profile import create_business_profile, last_business_id
 
 def register(payload: UserRegister, db: Session) -> UserResponse:
     existing = get_user(payload.username, db)
     if existing:
         raise HTTPException(status_code=500, detail="User already exists")
-    return create_user(payload.username, payload.email, hash_password(payload.password), payload.roles, db)
+    business_id = last_business_id(db) + 1
+    create_business_profile(db, payload.business)
+    return create_user(payload.username, payload.email, hash_password(payload.password), payload.roles, payload.business.id, db)
    
 def login(payload: UserLogin, db: Session) -> TokensResponse:
     user = get_user(payload.username, db)
