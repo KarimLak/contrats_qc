@@ -13,4 +13,4 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     roles: Mapped[list[str]] = mapped_column(ARRAY(String(255)), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
-    buisness_id: Mapped[int] = mapped_column(Integer, ForeignKey("buisnessprofile.id"))
+    business_id: Mapped[int] = mapped_column(Integer, ForeignKey("businessprofile.id"))
