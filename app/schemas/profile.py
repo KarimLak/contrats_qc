@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from app.type.tender import TenderNature, TenderRegion, TenderType
 
 class BuisnessProfile(BaseModel):
@@ -17,4 +17,5 @@ class BuisnessProfileCreate(BuisnessProfile):
     pass
 
 class BuisnessProfileResponse(BuisnessProfile):
-    id: str
+    id: str = Field(..., ge=0)
+    model_config = ConfigDict(from_attributes=True)
