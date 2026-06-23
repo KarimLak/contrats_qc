@@ -93,17 +93,17 @@ export interface ContractFilterResponse {
 }
 
 export const contractApi = {
-  get_contracts(filter: Record<string, string>, skip: number, limit: number): Promise<ContractFilterResponse> {
-
+  get_contracts(filter: Record<string, string | string[]>, skip: number, limit: number): Promise<ContractFilterResponse> {
     const params = new URLSearchParams()
     params.append("skip", String(skip))
     params.append("limit", String(limit))
-
-    for(const key in filter) {
-         params.append(key, filter[key])
+    for (const [key, value] of Object.entries(filter)) {
+      if (Array.isArray(value)) {
+        value.forEach(v => params.append(key, v))
+      } else {
+        params.append(key, value)
+      }
     }
-return request<ContractFilterResponse>(`/contracts?${params.toString()}`, {
-      method: "GET",
-    });
+    return request<ContractFilterResponse>(`/contract/?${params.toString()}`, { method: "GET" })
   },
 };

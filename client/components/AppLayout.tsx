@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext"
 
 const NAV: ({ href: string; label: string; icon: string; pro: boolean } | { divider: true })[] = [
   { href: "/dashboard", label: "Tableau de bord", icon: "⬛", pro: false },
-  { href: "/register",  label: "Explorateur",     icon: "🔍", pro: false },
+  { href: "/explorer",  label: "Explorateur",     icon: "🔍", pro: false },
   { divider: true },
   { href: "/alerts",    label: "Alertes",          icon: "🔔", pro: true  },
   { href: "/analytics", label: "Analytique",       icon: "📊", pro: true  },

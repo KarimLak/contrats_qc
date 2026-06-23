@@ -17,7 +17,7 @@ export default function Login() {
 
   useEffect(() => {
   if (!authLoading && user) {
-    router.push("/dashboard")  // already logged in → skip login page
+    router.push("/explorer")  // already logged in → skip login page
   }
 }, [user, authLoading, router])
 
@@ -27,7 +27,7 @@ export default function Login() {
     setError("")
     try {
       await login(form.username, form.password)
-      router.push("/dashboard")
+      router.push("/explorer")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue")
     } finally {

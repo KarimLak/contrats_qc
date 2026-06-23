@@ -1,9 +1,6 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from enum import Enum
-from typing import Optional
-
-from app.type.tender import TenderCategory, TenderNature, TenderRegion, TenderStatus, TenderType
 
 
 class ContractSortField(str, Enum):
@@ -14,17 +11,17 @@ class ContractSortField(str, Enum):
     region = "region"
     date_publication = "date_publication"
     date_fermeture = "date_fermeture"
-    
+
 class SortOrder(str, Enum):
     asc = "asc"
     desc = "desc"
 
 class ContractFilter(BaseModel):
-    type_avis: Optional[List[TenderType]] = None 
-    statut: Optional[List[TenderStatus]] = None 
-    nature_contrat: Optional[List[TenderNature]] = None   
-    categorie: Optional[List[TenderCategory]] = None      
-    region: Optional[List[TenderRegion]] = None
+    type_avis: Optional[List[str]] = None
+    statut: Optional[List[str]] = None
+    nature_contrat: Optional[List[str]] = None
+    categorie: Optional[List[str]] = None
+    region: Optional[List[str]] = None
     date_publication: Optional[str] = Field(None, max_length=100)
     date_fermeture: Optional[str] = Field(default=None, max_length=100)
 
@@ -103,8 +100,7 @@ class ContractResponse(ContractBase):
 class ContractFilterResponse(BaseModel):
     skip: int = Field(0, ge=0)
     limit: int = Field(20, ge=1, le=100)
-    sort_by: SortOrder = Field(ContractSortField.date_publication)
-    sort_order: ContractSortField = Field(SortOrder.desc)
+    total: int = Field(0, ge=0)
     contracts: Optional[List[ContractResponse]]
 
     model_config = {"from_attributes": True}

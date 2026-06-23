@@ -172,7 +172,7 @@ export default function RegisterPage() {
           budget_min: Number(form.budget_min),
           budget_max: Number(form.budget_max),
         })
-        router.push("/dashboard")
+        router.push("/explorer")
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur lors de la création du compte.")
         setLoading(false)
