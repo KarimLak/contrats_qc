@@ -29,6 +29,17 @@ export interface TokenResponse {
   token_type: string;
 }
 
+export interface BusinessProfileData {
+  name: string;
+  sector: string[];
+  contract_type: string[];
+  expertise: string[];
+  region: string[];
+  size: number;
+  budget_min: number;
+  budget_max: number;
+}
+
 export const authApi = {
   login(username: string, password: string): Promise<TokenResponse> {
     return request<TokenResponse>("/auth/login", {
@@ -37,10 +48,10 @@ export const authApi = {
     });
   },
 
-  register(username: string, email: string, password: string): Promise<User> {
+  register(username: string, email: string, password: string, business: BusinessProfileData): Promise<User> {
     return request<User>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ username, email, password }),
+      body: JSON.stringify({ username, email, password, business }),
     });
   },
 

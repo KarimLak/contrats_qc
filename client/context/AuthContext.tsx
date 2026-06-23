@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { authApi, User } from "../api/auth";
+import { authApi, User, BusinessProfileData } from "../api/auth";
 
 export type Subscription = "user" | "pro" | "enterprise";
 
@@ -9,7 +9,7 @@ interface AuthContextType {
   loading:      boolean;
   subscription: Subscription;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string, business: BusinessProfileData) => Promise<void>;
   logout:   () => Promise<void>;
 }
 
@@ -42,8 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await authApi.me(_token));
   }, []);
 
-  const register = useCallback(async (username: string, email: string, password: string): Promise<void> => {
-    await authApi.register(username, email, password);
+  const register = useCallback(async (username: string, email: string, password: string, business: BusinessProfileData): Promise<void> => {
+    await authApi.register(username, email, password, business);
     await login(username, password);
   }, [login]);
 
