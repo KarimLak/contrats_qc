@@ -42,7 +42,7 @@ class Contract(Base):
     documents:       Mapped[list] = mapped_column(JSON, default=list)
 
     # ── Geography & trade agreements ──────────────────────────────────────────
-    region:      Mapped[str]           = mapped_column(String(255),  nullable=False)
+    region:      Mapped[str]           = mapped_column(String(500),  nullable=False)
     accord:      Mapped[str]           = mapped_column(String(1000), nullable=False)
     territoires: Mapped[Optional[str]] = mapped_column(String(500),  nullable=True)
 

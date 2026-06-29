@@ -106,4 +106,8 @@ export const contractApi = {
     }
     return request<ContractFilterResponse>(`/contract/?${params.toString()}`, { method: "GET" })
   },
+
+  get_contract(id: number): Promise<Contract> {
+    return request<Contract>(`/contract/${id}`, { method: "GET" })
+  },
 };

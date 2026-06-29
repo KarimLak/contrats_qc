@@ -11,7 +11,7 @@ class BusinessProfile(Base):
     sector: Mapped[list[str]] = mapped_column(ARRAY(String(255)), nullable=False)
     contract_type: Mapped[list[str]] = mapped_column(ARRAY(String(255)), nullable=False)
     expertise: Mapped[list[str]] = mapped_column(ARRAY(String(255)), nullable=False)
-    region: Mapped[list[str]] = mapped_column(ARRAY(String(255)), nullable=False)
+    region: Mapped[list[str]] = mapped_column(ARRAY(String(500)), nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     budget_min: Mapped[int] = mapped_column(Integer, nullable=False)
     budget_max: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -60,7 +60,7 @@ class ContractBase(BaseModel):
     documents:       list[Document] = Field(default_factory=list)
 
     # ── Geography & trade agreements ──────────────────────────────────────────
-    region:      str = Field(..., max_length=255)
+    region:      str = Field(..., max_length=500)
     accord:      Optional[str] = Field(default=None, max_length=1000)
     territoires: Optional[str] = Field(default=None, max_length=500)
 

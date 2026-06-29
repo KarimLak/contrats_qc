@@ -80,7 +80,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             if ("divider" in item) {
               return <div key={i} style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "8px 20px" }} />
             }
-            const active   = pathname === item.href
+            const active   = pathname === item.href || pathname.startsWith(item.href + "/")
             const locked   = item.pro && subscription === "free"
             return (
               <Link key={item.href} href={item.href} style={{

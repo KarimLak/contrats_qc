@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.repositories.contract import get_contracts_list, get_contracts_count
+from app.repositories.contract import get_contracts_list, get_contracts_count, get_contract_by_id
 from app.schemas.contract import ContractFilter, ContractFilterResponse, ContractResponse, ContractSortField, SortOrder
 
 def get_contracts(payload: ContractFilter, skip: int, limit: int, sort_by: ContractSortField, sort_order: SortOrder, db: Session) -> ContractFilterResponse:
@@ -7,5 +7,8 @@ def get_contracts(payload: ContractFilter, skip: int, limit: int, sort_by: Contr
     total = get_contracts_count(data, db)
     contracts = get_contracts_list(data, skip, limit, sort_by, sort_order, db)
     return ContractFilterResponse(skip=skip, limit=limit, total=total, contracts=contracts)
+
+def get_contract(contract_id: int, db: Session):
+    return get_contract_by_id(contract_id, db)
 
 

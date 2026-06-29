@@ -28,3 +28,6 @@ def get_contracts_list(filters: dict, skip: int, limit: int, sort_by: ContractSo
     order_func = desc if sort_order == SortOrder.desc else asc
     query = query.order_by(order_func(order_column)).offset(skip).limit(limit)
     return db.execute(query).scalars().all()
+
+def get_contract_by_id(contract_id: int, db: Session) -> Contract | None:
+    return db.execute(select(Contract).where(Contract.id == contract_id)).scalar_one_or_none()

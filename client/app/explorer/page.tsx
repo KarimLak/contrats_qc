@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
+import Link from "next/link"
 import AppLayout from "@/components/AppLayout"
 import { contractApi, type Contract } from "@/api/contract"
 
@@ -68,10 +69,8 @@ function ContractCard({ c }: { c: Contract }) {
   const [hovered, setHovered] = useState(false)
 
   return (
-    <a
-      href={c.url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <Link
+      href={`/explorer/${c.id}`}
       style={{ textDecoration: "none", display: "block" }}
     >
       <div
@@ -133,7 +132,7 @@ function ContractCard({ c }: { c: Contract }) {
           <span>📅 {fmtDate(c.date_publication)}</span>
         </div>
       </div>
-    </a>
+    </Link>
   )
 }
 
