@@ -1,20 +1,148 @@
 "use client"
-import { useState, KeyboardEvent } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/context/AuthContext"
 import PublicNav from "@/components/PublicNav"
 
-const SECTOR_OPTIONS = [
-  "Approvisionnement (biens)",
-  "Autres",
-  "Concession",
-  "Services",
-  "Partenariat",
-  "Travaux de construction",
-  "Ventes de biens immeubles",
-  "Ventes de biens meubles",
+interface SectorCategory {
+  id: number
+  descriptionFr: string
+}
+
+interface SectorNode {
+  id: number
+  descriptionFr: string
+  categories: SectorCategory[]
+}
+
+// Arborescence secteurs/catégories (SEAO). Les valeurs descriptionFr sont envoyées
+// telles quelles à la base de données — ne pas les modifier, seul l'affichage est simplifié.
+const SECTOR_TREE: SectorNode[] = [
+  {
+    id: 1,
+    descriptionFr: "Approvisionnement (biens)",
+    categories: [
+      { id: 1, descriptionFr: "G1 - Aérospatiale" },
+      { id: 2, descriptionFr: "G15 - Alimentation" },
+      { id: 3, descriptionFr: "G17 - Ameublement" },
+      { id: 4, descriptionFr: "G3 - Armement" },
+      { id: 5, descriptionFr: "G5 - Communication, détection et fibres optiques" },
+      { id: 7, descriptionFr: "G7 - Cosmétiques et articles de toilette" },
+      { id: 8, descriptionFr: "G11 - Énergie" },
+      { id: 10, descriptionFr: "G14 - Équipement de lutte contre l’incendie, de sécurité et de protection" },
+      { id: 11, descriptionFr: "G31 - Équipement de transport et pièces de rechange" },
+      { id: 12, descriptionFr: "G18 - Équipement industriel" },
+      { id: 13, descriptionFr: "G21 - Fourniture et équipement médicaux et produits pharmaceutiques" },
+      { id: 14, descriptionFr: "G27 - Instruments scientifiques" },
+      { id: 16, descriptionFr: "G19 - Machinerie et outils" },
+      { id: 17, descriptionFr: "G20 - Marine" },
+      { id: 18, descriptionFr: "G6 - Matériaux de construction" },
+      { id: 19, descriptionFr: "G23 - Matériel de bureau" },
+      { id: 20, descriptionFr: "G2 - Matériel de climatisation et de réfrigération" },
+      { id: 21, descriptionFr: "G8 - Matériel informatique et logiciel" },
+      { id: 22, descriptionFr: "G12 - Moteurs, turbines, composants et accessoires connexes" },
+      { id: 23, descriptionFr: "G24 - Papeterie et fournitures de bureau" },
+      { id: 24, descriptionFr: "G16 - Préparation alimentaire et équipement de service" },
+      { id: 25, descriptionFr: "G22 - Produits divers" },
+      { id: 26, descriptionFr: "G10 - Produits électriques et électroniques" },
+      { id: 27, descriptionFr: "G4 - Produits et spécialités chimiques" },
+      { id: 28, descriptionFr: "G13 - Produits finis" },
+      { id: 29, descriptionFr: "G26 - Publications, formulaires et articles en papier" },
+      { id: 30, descriptionFr: "G30 - Textiles et vêtements" },
+      { id: 31, descriptionFr: "G28 - Véhicules spéciaux" },
+    ],
+  },
+  {
+    id: 3,
+    descriptionFr: "Travaux de construction",
+    categories: [
+      { id: 52, descriptionFr: "C01 - Bâtiments" },
+      { id: 53, descriptionFr: "C02 - Ouvrages de génie civil" },
+    ],
+  },
+  {
+    id: 5,
+    descriptionFr: "Ventes de biens meubles ",
+    categories: [{ id: 55, descriptionFr: "Meu1 - Vente de biens meubles" }],
+  },
+  {
+    id: 6,
+    descriptionFr: "Ventes de biens immeubles",
+    categories: [{ id: 56, descriptionFr: "Imm1 - Vente de biens immeubles" }],
+  },
+  {
+    id: 7,
+    descriptionFr: "Autres (Mandataire)",
+    categories: [{ id: 57, descriptionFr: "O1 - Indéterminé" }],
+  },
+  {
+    id: 8,
+    descriptionFr: "Services de nature technique",
+    categories: [
+      { id: 32, descriptionFr: "S8 - Contrôle de la qualité, essais et inspections et services de représentants techniques" },
+      { id: 33, descriptionFr: "S9 - Entretien, réparation, modification, réfection et installation de biens et d’équipement" },
+      { id: 34, descriptionFr: "S2 - Études spéciales et analyses" },
+      { id: 38, descriptionFr: "S1 - Recherche et développement (R et D)" },
+      { id: 39, descriptionFr: "S3 - Services d’architecture et d’ingénierie" },
+      { id: 40, descriptionFr: "S15 - Services de communication, de photographie, de cartographie, d’impression et de publication" },
+      { id: 41, descriptionFr: "S10 - Services de garde et autres services connexes" },
+      { id: 42, descriptionFr: "S6 - Services de ressources naturelles" },
+      { id: 43, descriptionFr: "S7 - Services de santé et services sociaux" },
+      { id: 44, descriptionFr: "S13 - Services de soutien professionnel et administratif et services de soutien à la gestion" },
+      { id: 45, descriptionFr: "S17 - Services de transport, de voyage et de déménagement" },
+      { id: 46, descriptionFr: "S5 - Services environnementaux" },
+      { id: 48, descriptionFr: "S16 - Services pédagogiques et formation" },
+      { id: 49, descriptionFr: "S14 - Services publics" },
+      { id: 50, descriptionFr: "S4 - Traitement de l’information et services de télécommunications connexes" },
+    ],
+  },
+  {
+    id: 9,
+    descriptionFr: "Services professionnels",
+    categories: [
+      { id: 32, descriptionFr: "S8 - Contrôle de la qualité, essais et inspections et services de représentants techniques" },
+      { id: 33, descriptionFr: "S9 - Entretien, réparation, modification, réfection et installation de biens et d’équipement" },
+      { id: 34, descriptionFr: "S2 - Études spéciales et analyses" },
+      { id: 38, descriptionFr: "S1 - Recherche et développement (R et D)" },
+      { id: 39, descriptionFr: "S3 - Services d’architecture et d’ingénierie" },
+      { id: 40, descriptionFr: "S15 - Services de communication, de photographie, de cartographie, d’impression et de publication" },
+      { id: 41, descriptionFr: "S10 - Services de garde et autres services connexes" },
+      { id: 42, descriptionFr: "S6 - Services de ressources naturelles" },
+      { id: 43, descriptionFr: "S7 - Services de santé et services sociaux" },
+      { id: 44, descriptionFr: "S13 - Services de soutien professionnel et administratif et services de soutien à la gestion" },
+      { id: 45, descriptionFr: "S17 - Services de transport, de voyage et de déménagement" },
+      { id: 46, descriptionFr: "S5 - Services environnementaux" },
+      { id: 47, descriptionFr: "S11 - Services financiers et autres services connexes" },
+      { id: 48, descriptionFr: "S16 - Services pédagogiques et formation" },
+      { id: 49, descriptionFr: "S14 - Services publics" },
+      { id: 50, descriptionFr: "S4 - Traitement de l’information et services de télécommunications connexes" },
+    ],
+  },
+  {
+    id: 10,
+    descriptionFr: "Partenariat",
+    categories: [{ id: 58, descriptionFr: "Part1 - Partenariat" }],
+  },
 ]
+
+// Libellés simplifiés pour l'affichage uniquement — la valeur stockée reste descriptionFr exact.
+const SECTOR_LABELS: Record<string, string> = {
+  "Approvisionnement (biens)": "Approvisionnement (biens)",
+  "Travaux de construction": "Travaux de construction",
+  "Ventes de biens meubles ": "Ventes de biens meubles",
+  "Ventes de biens immeubles": "Ventes de biens immeubles",
+  "Autres (Mandataire)": "Autres",
+  "Services de nature technique": "Services techniques",
+  "Services professionnels": "Services professionnels",
+  "Partenariat": "Partenariat",
+}
+
+const sectorLabel = (descriptionFr: string) => SECTOR_LABELS[descriptionFr] ?? descriptionFr.trim()
+
+// Retire le préfixe de code (ex. "G1 - ", "S15 - ", "C01 - ") pour un affichage plus simple.
+const categoryLabel = (descriptionFr: string) =>
+  descriptionFr.replace(/^[A-Za-zÀ-ÿ]+\d*\s*-\s*/, "")
 
 const CONTRACT_TYPE_OPTIONS = [
   "Avis d'appel d'intérêt",
@@ -74,7 +202,7 @@ const STEP_SUBTITLES = [
   "Comment s'appelle officiellement votre entreprise ?",
   "Sélectionnez les secteurs dans lesquels votre entreprise est active.",
   "Quels types de contrats souhaitez-vous recevoir ?",
-  "Ajoutez les expertises clés de votre entreprise (ex. : génie civil, TI…).",
+  "Sélectionnez les domaines d'expertise liés à vos secteurs d'activité.",
   "Dans quelles régions du Québec opérez-vous ?",
   "Ces informations nous aident à calibrer les opportunités qui vous sont présentées.",
 ]
@@ -112,11 +240,23 @@ export default function RegisterPage() {
     budget_min: "",
     budget_max: "",
   })
-  const [expertiseInput, setExpertiseInput] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
   const progress = Math.round(((step + 1) / TOTAL_STEPS) * 100)
+
+  // Domaines d'expertise disponibles : union (dédupliquée) des catégories des secteurs sélectionnés.
+  const availableCategories: SectorCategory[] = []
+  const seenCategories = new Set<string>()
+  for (const s of SECTOR_TREE) {
+    if (!form.sector.includes(s.descriptionFr)) continue
+    for (const c of s.categories) {
+      if (!seenCategories.has(c.descriptionFr)) {
+        seenCategories.add(c.descriptionFr)
+        availableCategories.push(c)
+      }
+    }
+  }
 
   const validate = (): string => {
     switch (step) {
@@ -189,31 +329,23 @@ export default function RegisterPage() {
     setStep(s => s - 1)
   }
 
-  const toggleMulti = (field: "sector" | "contract_type" | "region", value: string) => {
-    setForm(f => ({
-      ...f,
-      [field]: f[field].includes(value)
+  const toggleMulti = (field: "sector" | "contract_type" | "expertise" | "region", value: string) => {
+    setForm(f => {
+      const next = f[field].includes(value)
         ? f[field].filter(v => v !== value)
-        : [...f[field], value],
-    }))
-  }
+        : [...f[field], value]
 
-  const addExpertise = () => {
-    const val = expertiseInput.trim()
-    if (val && !form.expertise.includes(val)) {
-      setForm(f => ({ ...f, expertise: [...f.expertise, val] }))
-    }
-    setExpertiseInput("")
-  }
+      if (field === "sector") {
+        const allowed = new Set<string>()
+        for (const s of SECTOR_TREE) {
+          if (!next.includes(s.descriptionFr)) continue
+          for (const c of s.categories) allowed.add(c.descriptionFr)
+        }
+        return { ...f, sector: next, expertise: f.expertise.filter(e => allowed.has(e)) }
+      }
 
-  const removeExpertise = (val: string) =>
-    setForm(f => ({ ...f, expertise: f.expertise.filter(e => e !== val) }))
-
-  const handleExpertiseKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault()
-      addExpertise()
-    }
+      return { ...f, [field]: next }
+    })
   }
 
   const INPUT: React.CSSProperties = {
@@ -299,14 +431,14 @@ export default function RegisterPage() {
       case 3:
         return (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            {SECTOR_OPTIONS.map(opt => {
-              const active = form.sector.includes(opt)
+            {SECTOR_TREE.map(s => {
+              const active = form.sector.includes(s.descriptionFr)
               return (
                 <button
-                  key={opt}
+                  key={s.id}
                   type="button"
                   className="chip-btn"
-                  onClick={() => toggleMulti("sector", opt)}
+                  onClick={() => toggleMulti("sector", s.descriptionFr)}
                   style={{
                     padding: "9px 18px",
                     border: active ? "2px solid #00B3A9" : "1.5px solid #dce8e8",
@@ -320,7 +452,7 @@ export default function RegisterPage() {
                     transition: "all 0.15s",
                   }}
                 >
-                  {opt}
+                  {sectorLabel(s.descriptionFr)}
                 </button>
               )
             })}
@@ -361,80 +493,68 @@ export default function RegisterPage() {
         )
 
       case 5:
+        if (availableCategories.length === 0) {
+          return (
+            <p style={{ fontSize: 13, color: "#8ba5a5" }}>
+              Veuillez d'abord sélectionner au moins un secteur d'activité à l'étape précédente.
+            </p>
+          )
+        }
         return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                autoFocus
-                value={expertiseInput}
-                onChange={e => setExpertiseInput(e.target.value)}
-                onKeyDown={handleExpertiseKey}
-                placeholder="Ex. : Génie civil, TI, Construction…"
-                style={{ ...INPUT, flex: 1 }}
-              />
-              <button
-                type="button"
-                onClick={addExpertise}
-                style={{
-                  padding: "0 20px",
-                  background: "#00B3A9",
-                  border: "none",
-                  borderRadius: 10,
-                  color: "white",
-                  fontSize: 22,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  lineHeight: 1,
-                }}
-              >
-                +
-              </button>
-            </div>
-            {form.expertise.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {form.expertise.map(tag => (
-                  <span
-                    key={tag}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "6px 14px",
-                      background: "rgba(0,179,169,0.1)",
-                      border: "1.5px solid #00B3A9",
-                      borderRadius: 50,
-                      fontSize: 13,
-                      color: "#00B3A9",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeExpertise(tag)}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
+            {availableCategories.map(cat => {
+              const active = form.expertise.includes(cat.descriptionFr)
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  className={`expertise-card${active ? " active" : ""}`}
+                  onClick={() => toggleMulti("expertise", cat.descriptionFr)}
+                  style={{
+                    padding: "14px 16px",
+                    border: active ? "1.5px solid #00B3A9" : "1.5px solid #e4eeee",
+                    borderRadius: 14,
+                    fontSize: 13,
+                    fontFamily: "inherit",
+                    fontWeight: active ? 600 : 500,
+                    color: active ? "#00786f" : "#4a6a6a",
+                    background: active
+                      ? "linear-gradient(135deg, rgba(0,179,169,0.12), rgba(0,179,169,0.05))"
+                      : "white",
+                    boxShadow: active ? "0 2px 10px rgba(0,179,169,0.12)" : "0 1px 3px rgba(27,42,74,0.05)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    lineHeight: 1.45,
+                    whiteSpace: "normal",
+                    transition: "all 0.18s cubic-bezier(0.22, 1, 0.36, 1)",
+                  }}
+                >
+                  {active && (
+                    <span
+                      className="expertise-badge"
                       style={{
-                        background: "none",
-                        border: "none",
-                        color: "#00B3A9",
-                        cursor: "pointer",
-                        fontSize: 16,
-                        padding: 0,
-                        lineHeight: 1,
-                        fontFamily: "inherit",
+                        position: "absolute",
+                        top: -7,
+                        right: -7,
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        background: "#00B3A9",
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "center",
+                        boxShadow: "0 2px 6px rgba(0,179,169,0.4)",
                       }}
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <p style={{ fontSize: 12, color: "#8ba5a5", marginTop: 2 }}>
-              Appuyez sur Entrée ou virgule pour ajouter.
-            </p>
+                      <svg width="10" height="8" viewBox="0 0 11 8" fill="none">
+                        <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
+                  {categoryLabel(cat.descriptionFr)}
+                </button>
+              )
+            })}
           </div>
         )
 
@@ -535,6 +655,14 @@ export default function RegisterPage() {
         .step-enter-next { animation: slideInRight 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
         .step-enter-prev { animation: slideInLeft  0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
         .chip-btn:hover  { transform: scale(1.03); }
+        .expertise-card { position: relative; }
+        .expertise-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,179,169,0.14); border-color: #9fd6d2 !important; }
+        .expertise-card.active:hover { box-shadow: 0 8px 20px rgba(0,179,169,0.22); }
+        .expertise-badge { animation: badgePop 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
+        @keyframes badgePop {
+          from { opacity: 0; transform: scale(0.5); }
+          to   { opacity: 1; transform: scale(1); }
+        }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #dce8e8; border-radius: 2px; }
