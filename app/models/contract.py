@@ -33,8 +33,8 @@ class Contract(Base):
     # ── Core description ──────────────────────────────────────────────────────
     titre:          Mapped[str]           = mapped_column(String(1000), nullable=False)
     organisation:   Mapped[str]           = mapped_column(String(500),  nullable=False, index=True)
-    nature_contrat: Mapped[str]           = mapped_column(String(255),  nullable=False)
-    categorie:      Mapped[str]           = mapped_column(String(500),  nullable=False)
+    nature_contrat: Mapped[str]           = mapped_column(String(255),  nullable=False, index=True)
+    categorie:      Mapped[str]           = mapped_column(String(500),  nullable=False, index=True)
     description:    Mapped[Optional[str]] = mapped_column(Text,         nullable=True)
 
     # ── Classification ─────────────────────────────────

@@ -118,3 +118,16 @@ class ContractFilterResponse(BaseModel):
     contracts: Optional[List[ContractResponse]]
 
     model_config = {"from_attributes": True}
+
+
+class RecommendedContract(ContractResponse):
+    match_score: int = Field(..., ge=0, le=100)
+
+
+class RecommendedContractsResponse(BaseModel):
+    skip: int = Field(0, ge=0)
+    limit: int = Field(20, ge=1, le=100)
+    total: int = Field(0, ge=0)
+    contracts: List[RecommendedContract]
+
+    model_config = {"from_attributes": True}

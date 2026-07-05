@@ -24,6 +24,10 @@ function deriveSubscription(user: User | null): Subscription {
 
 let _token: string | null = null;
 
+export function getAccessToken(): string | null {
+  return _token;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);

@@ -92,6 +92,17 @@ export interface ContractFilterResponse {
   contracts: Contract[] | null;
 }
 
+export interface RecommendedContract extends Contract {
+  match_score: number;
+}
+
+export interface RecommendedContractsResponse {
+  skip:      number;
+  limit:     number;
+  total:     number;
+  contracts: RecommendedContract[];
+}
+
 export const contractApi = {
   get_contracts(filter: Record<string, string | string[]>, skip: number, limit: number): Promise<ContractFilterResponse> {
     const params = new URLSearchParams()
@@ -109,5 +120,15 @@ export const contractApi = {
 
   get_contract(id: number): Promise<Contract> {
     return request<Contract>(`/contract/${id}`, { method: "GET" })
+  },
+
+  get_recommended_contracts(skip: number, limit: number, token: string): Promise<RecommendedContractsResponse> {
+    const params = new URLSearchParams()
+    params.append("skip", String(skip))
+    params.append("limit", String(limit))
+    return request<RecommendedContractsResponse>(`/contract/recommended?${params.toString()}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    })
   },
 };
