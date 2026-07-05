@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useAuth } from "@/context/AuthContext"
 import { contractApi, type Contract } from "@/api/contract"
 import AppLayout from "@/components/AppLayout"
+import { DocumentIcon, CheckCircleIcon, PinIcon, TagIcon, SearchIcon, BellIcon, BarChartIcon, BookmarkIcon, ClockIcon } from "@/components/icons"
 
 const MONTHS_FR = ["jan","fév","mar","avr","mai","juin","juil","août","sep","oct","nov","déc"]
 
@@ -54,22 +55,22 @@ function DashboardContent() {
 
   const FEATURES = [
     {
-      href: "/explorer", icon: "🔍", label: "Explorateur", locked: false,
+      href: "/explorer", icon: SearchIcon, label: "Explorateur", locked: false,
       desc: "Parcourez les 2 000+ contrats actifs du SEAO avec des filtres avancés.",
       cta: "Ouvrir l'explorateur",
     },
     {
-      href: "/alerts", icon: "🔔", label: "Alertes", locked: subscription === "user",
+      href: "/alerts", icon: BellIcon, label: "Alertes", locked: subscription === "user",
       desc: "Recevez une notification instantanée dès qu'un contrat correspond à votre profil.",
       cta: subscription === "user" ? "Débloquer — Pro" : "Gérer mes alertes",
     },
     {
-      href: "/analytics", icon: "📊", label: "Analytique", locked: subscription === "user",
+      href: "/analytics", icon: BarChartIcon, label: "Analytique", locked: subscription === "user",
       desc: "Tendances du marché, organisations actives, secteurs porteurs dans votre région.",
       cta: subscription === "user" ? "Débloquer — Pro" : "Voir l'analytique",
     },
     {
-      href: "/saved", icon: "🔖", label: "Sauvegardés", locked: subscription === "user",
+      href: "/saved", icon: BookmarkIcon, label: "Sauvegardés", locked: subscription === "user",
       desc: "Créez des listes de suivi et retrouvez instantanément les contrats qui vous intéressent.",
       cta: subscription === "user" ? "Débloquer — Pro" : "Mes sauvegardés",
     },
@@ -96,7 +97,7 @@ function DashboardContent() {
         }}>
           <div>
             <p style={{ fontWeight: 700, fontSize: 15, color: "white", marginBottom: 4 }}>
-              🚀 Passez à Pro et débloquez toutes les fonctionnalités
+              Passez à Pro et débloquez toutes les fonctionnalités
             </p>
             <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>
               Alertes en temps réel, tableau analytique, sauvegarde et export — à partir de 29 $/mois.
@@ -115,14 +116,14 @@ function DashboardContent() {
       {/* Stats row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
         {[
-          { label: "Contrats au total", value: stats.loading ? "…" : stats.total.toLocaleString("fr-CA"), icon: "📄", color: "#e6f7f6" },
-          { label: "Contrats actifs",   value: stats.loading ? "…" : stats.active.toLocaleString("fr-CA"), icon: "✅", color: "#ecfdf5" },
-          { label: "Régions couvertes", value: "17", icon: "📍", color: "#eff6ff" },
-          { label: "Types d'avis",      value: "9",  icon: "🗂", color: "#fdf4ff" },
+          { label: "Contrats au total", value: stats.loading ? "…" : stats.total.toLocaleString("fr-CA"), icon: DocumentIcon, color: "#e6f7f6" },
+          { label: "Contrats actifs",   value: stats.loading ? "…" : stats.active.toLocaleString("fr-CA"), icon: CheckCircleIcon, color: "#ecfdf5" },
+          { label: "Régions couvertes", value: "17", icon: PinIcon, color: "#eff6ff" },
+          { label: "Types d'avis",      value: "9",  icon: TagIcon, color: "#fdf4ff" },
         ].map(s => (
           <div key={s.label} style={{ background: "white", border: "1.5px solid #dce8e8", borderRadius: 14, padding: "20px 22px" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 11, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 12 }}>
-              {s.icon}
+            <div style={{ width: 40, height: 40, borderRadius: 11, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+              <s.icon size={19} />
             </div>
             <div style={{ fontSize: 28, fontWeight: 800, color: "#1b2a4a", letterSpacing: "-1px", lineHeight: 1, marginBottom: 4 }}>
               {s.value}
@@ -149,7 +150,7 @@ function DashboardContent() {
                 onMouseLeave={e => { e.currentTarget.style.borderColor = "#dce8e8"; e.currentTarget.style.boxShadow = "none" }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <span style={{ fontSize: 22 }}>{f.icon}</span>
+                  <f.icon size={20} />
                   <span style={{ fontSize: 16, fontWeight: 700, color: "#1b2a4a" }}>{f.label}</span>
                   {f.locked && (
                     <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "#e6f7f6", color: "#009991", letterSpacing: 0.5, marginLeft: "auto" }}>PRO</span>
@@ -199,15 +200,18 @@ function DashboardContent() {
                         <p style={{ fontSize: 12, color: "#4a6a6a" }}>{c.organisation}</p>
                       </div>
                       {c.date_fermeture && (
-                        <span style={{ fontSize: 12, color: urgencyColor(days), fontWeight: 600, flexShrink: 0 }}>
-                          ⏳ {days !== null && days > 0 ? `${days}j` : days === 0 ? "Aujourd'hui" : "Expiré"}
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: urgencyColor(days), fontWeight: 600, flexShrink: 0 }}>
+                          <ClockIcon size={13} />
+                          {days !== null && days > 0 ? `${days}j` : days === 0 ? "Aujourd'hui" : "Expiré"}
                         </span>
                       )}
                     </div>
-                    <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 11, color: "#8ba5a5" }}>
-                      {c.region && <span>📍 {c.region}</span>}
-                      {c.nature_contrat && <span>📋 {c.nature_contrat}</span>}
-                      <span>📅 {fmtDate(c.date_publication)}</span>
+                    <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 11, color: "#8ba5a5", alignItems: "center" }}>
+                      {c.region && <span>{c.region}</span>}
+                      {c.region && c.nature_contrat && <span style={{ color: "#dce8e8" }}>·</span>}
+                      {c.nature_contrat && <span>{c.nature_contrat}</span>}
+                      <span style={{ color: "#dce8e8" }}>·</span>
+                      <span>{fmtDate(c.date_publication)}</span>
                     </div>
                   </div>
                 </Link>

@@ -15,5 +15,5 @@ class BusinessProfileCreate(BusinessProfile):
     pass
 
 class BusinessProfileResponse(BusinessProfile):
-    id: str = Field(..., ge=0)
+    id: int = Field(..., ge=0)
     model_config = ConfigDict(from_attributes=True)

@@ -4,16 +4,16 @@ import { usePathname, useRouter } from "next/navigation"
 import { useCallback, useEffect, type ReactNode } from "react"
 import { useAuth } from "@/context/AuthContext"
 
-const NAV: ({ href: string; label: string; icon: string; pro: boolean } | { divider: true })[] = [
-  { href: "/dashboard",   label: "Tableau de bord", icon: "⬛", pro: false },
-  { href: "/explorer",    label: "Explorateur",     icon: "🔍", pro: false },
-  { href: "/recommended", label: "Recommandés",     icon: "🎯", pro: false },
+const NAV: ({ href: string; label: string; pro: boolean } | { divider: true })[] = [
+  { href: "/dashboard",   label: "Tableau de bord", pro: false },
+  { href: "/explorer",    label: "Explorateur",     pro: false },
+  { href: "/recommended", label: "Recommandés",     pro: false },
   { divider: true },
-  { href: "/alerts",    label: "Alertes",          icon: "🔔", pro: true  },
-  { href: "/analytics", label: "Analytique",       icon: "📊", pro: true  },
-  { href: "/saved",     label: "Sauvegardés",      icon: "🔖", pro: true  },
+  { href: "/alerts",    label: "Alertes",          pro: true  },
+  { href: "/analytics", label: "Analytique",       pro: true  },
+  { href: "/saved",     label: "Sauvegardés",      pro: true  },
   { divider: true },
-  { href: "/profile",   label: "Mon profil",       icon: "👤", pro: false },
+  { href: "/profile",   label: "Mon profil",       pro: false },
 ]
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -91,7 +91,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 borderLeft: active ? "3px solid #00B3A9" : "3px solid transparent",
                 color: active ? "#00B3A9" : locked ? "rgba(255,255,255,0.32)" : "rgba(255,255,255,0.72)",
               }}>
-                <span style={{ fontSize: 15, lineHeight: 1 }}>{item.icon}</span>
                 <span style={{ fontSize: 14, fontWeight: active ? 600 : 400, flex: 1, lineHeight: 1.2 }}>{item.label}</span>
                 {locked && (
                   <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, background: "rgba(0,179,169,0.18)", color: "#00B3A9", letterSpacing: 0.5 }}>PRO</span>

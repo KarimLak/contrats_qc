@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import AppLayout from "@/components/AppLayout"
 import { contractApi, type Contract } from "@/api/contract"
+import { PinIcon, TagIcon } from "@/components/icons"
 
 const MONTHS_FR = ["jan","fév","mar","avr","mai","juin","juil","août","sep","oct","nov","déc"]
 
@@ -210,12 +211,12 @@ function DetailContent() {
             <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontSize: 13, color: "#4a6a6a" }}>
               {c.region && (
                 <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ color: "#b3e6e3" }}>📍</span>{c.region}
+                  <PinIcon size={14} color="#00B3A9" />{c.region}
                 </span>
               )}
               {c.categorie && (
                 <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ color: "#b3e6e3" }}>🗂</span>
+                  <TagIcon size={14} color="#00B3A9" />
                   {c.categorie.length > 55 ? c.categorie.slice(0, 55) + "…" : c.categorie}
                 </span>
               )}

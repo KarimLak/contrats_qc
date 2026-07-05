@@ -35,8 +35,11 @@ export default function UpgradeGate({ children, feature, description, benefits, 
           padding: "40px 44px", maxWidth: 460, width: "100%", textAlign: "center",
           boxShadow: "0 24px 64px rgba(27,42,74,0.10), 0 4px 16px rgba(0,179,169,0.08)",
         }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: "#e6f7f6", border: "1.5px solid #b3e6e3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 18px" }}>
-            🔒
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: "#e6f7f6", border: "1.5px solid #b3e6e3", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <rect x="5" y="11" width="14" height="10" rx="2" stroke="#009991" strokeWidth="1.8" />
+              <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="#009991" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
           </div>
 
           <div style={{ display: "inline-block", padding: "4px 14px", background: "#00B3A9", borderRadius: 20, fontSize: 11, fontWeight: 700, color: "white", letterSpacing: 0.7, textTransform: "uppercase", marginBottom: 14 }}>

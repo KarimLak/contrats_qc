@@ -4,6 +4,7 @@ import Link from "next/link"
 import PublicNav from "@/components/PublicNav"
 import AppLayout from "@/components/AppLayout"
 import { useAuth } from "@/context/AuthContext"
+import { LockIcon, RefreshIcon, FlagIcon, ChatIcon } from "@/components/icons"
 
 const PLANS = [
   {
@@ -126,7 +127,7 @@ function PricingContent({ isApp, subscription }: { isApp: boolean; subscription:
             }}>
               {plan.highlight && (
                 <div style={{ background: "#00B3A9", textAlign: "center", padding: "8px 0", fontSize: 12, fontWeight: 700, color: "white", letterSpacing: 0.7 }}>
-                  ⭐ LE PLUS POPULAIRE
+                  LE PLUS POPULAIRE
                 </div>
               )}
               {isCurrent && !plan.highlight && (
@@ -196,13 +197,13 @@ function PricingContent({ isApp, subscription }: { isApp: boolean; subscription:
       {/* Guarantee strip */}
       <div style={{ background: "white", border: "1.5px solid #dce8e8", borderRadius: 16, padding: "24px 36px", marginBottom: 64, display: "flex", justifyContent: "space-around", flexWrap: "wrap", gap: 20, textAlign: "center" }}>
         {[
-          { icon: "🔒", label: "Paiement sécurisé",    sub: "Cryptage SSL 256-bit" },
-          { icon: "🔄", label: "Annulation libre",      sub: "Sans engagement ni frais" },
-          { icon: "🇨🇦", label: "Données québécoises", sub: "Sources officielles SEAO" },
-          { icon: "💬", label: "Support humain",        sub: "Réponse en < 24h" },
+          { icon: LockIcon, label: "Paiement sécurisé",    sub: "Cryptage SSL 256-bit" },
+          { icon: RefreshIcon, label: "Annulation libre",      sub: "Sans engagement ni frais" },
+          { icon: FlagIcon, label: "Données québécoises", sub: "Sources officielles SEAO" },
+          { icon: ChatIcon, label: "Support humain",        sub: "Réponse en < 24h" },
         ].map(g => (
           <div key={g.label}>
-            <div style={{ fontSize: 26, marginBottom: 6 }}>{g.icon}</div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}><g.icon size={24} /></div>
             <p style={{ fontSize: 13, fontWeight: 700, color: "#1b2a4a", marginBottom: 2 }}>{g.label}</p>
             <p style={{ fontSize: 12, color: "#8ba5a5" }}>{g.sub}</p>
           </div>

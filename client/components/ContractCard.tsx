@@ -116,10 +116,12 @@ export function ContractCard({ c, matchScore }: { c: Contract; matchScore?: numb
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 12, color: "#8ba5a5", flexWrap: "wrap" }}>
-          {c.region && <span>📍 {c.region}</span>}
-          {c.categorie && <span>🗂 {c.categorie.length > 40 ? c.categorie.slice(0, 40) + "…" : c.categorie}</span>}
-          <span>📅 {fmtDate(c.date_publication)}</span>
+        <div style={{ display: "flex", gap: 8, marginTop: 12, fontSize: 12, color: "#8ba5a5", flexWrap: "wrap", alignItems: "center" }}>
+          {c.region && <span>{c.region}</span>}
+          {c.region && c.categorie && <span style={{ color: "#dce8e8" }}>·</span>}
+          {c.categorie && <span>{c.categorie.length > 40 ? c.categorie.slice(0, 40) + "…" : c.categorie}</span>}
+          <span style={{ color: "#dce8e8" }}>·</span>
+          <span>{fmtDate(c.date_publication)}</span>
         </div>
       </div>
     </Link>

@@ -162,7 +162,7 @@ export default function Login() {
           <h1 className="login-title">Bon retour </h1>
           <p className="login-sub">Connectez-vous pour accéder à votre tableau de bord.</p>
 
-          {error && <div className="login-error">⚠️ {error}</div>}
+          {error && <div className="login-error">{error}</div>}
 
           <form onSubmit={submit}>
             <label className="login-label" htmlFor="username">Nom d'utilisateur</label>
