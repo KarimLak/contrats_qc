@@ -7,11 +7,8 @@ import { contractApi, type Contract } from "@/api/contract"
 const PAGE_SIZE = 20
 
 const STATUS_OPTIONS = [
-  { value: "",               label: "Tous" },
-  { value: "Publié",         label: "Publié" },
-  { value: "Terminé",        label: "Terminé" },
-  { value: "Annulé",         label: "Annulé" },
-  { value: "Contrat conclu", label: "Conclu" },
+  { value: "Publié",           label: "Publié" },
+  { value: "Terminé",          label: "Terminé" },
   { value: "Liste disponible", label: "Liste dispo." },
 ]
 
@@ -61,6 +58,102 @@ function statusBadgeStyle(statut: string): React.CSSProperties {
   }
   const s = map[statut] ?? { color: "#1d4ed8", bg: "#dbeafe" }
   return { color: s.color, background: s.bg }
+}
+
+function MultiSelectDropdown({
+  label, options, selected, onToggle, onClear,
+}: {
+  label: string
+  options: { value: string; label: string }[]
+  selected: string[]
+  onToggle: (value: string) => void
+  onClear: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onClick)
+    return () => document.removeEventListener("mousedown", onClick)
+  }, [open])
+
+  const active = selected.length > 0
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "9px 14px",
+          border: active ? "2px solid #00B3A9" : "1.5px solid #dce8e8",
+          borderRadius: 10,
+          fontSize: 13,
+          fontFamily: "inherit",
+          fontWeight: active ? 600 : 400,
+          color: active ? "#00B3A9" : "#4a6a6a",
+          background: active ? "rgba(0,179,169,0.08)" : "white",
+          cursor: "pointer",
+          transition: "all 0.15s",
+        }}
+      >
+        {label}{active ? ` (${selected.length})` : ""}
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ flexShrink: 0 }}>
+          <path d="M1 1L5 5L9 1" stroke={active ? "#00B3A9" : "#8ba5a5"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 20,
+          background: "white", border: "1.5px solid #dce8e8", borderRadius: 12,
+          boxShadow: "0 8px 24px rgba(27,42,74,0.12)",
+          padding: 8, minWidth: 240, maxHeight: 300, overflowY: "auto",
+          display: "flex", flexDirection: "column", gap: 2,
+        }}>
+          {active && (
+            <button
+              type="button"
+              onClick={onClear}
+              style={{
+                textAlign: "left", padding: "6px 8px", marginBottom: 4,
+                border: "none", background: "none", cursor: "pointer",
+                fontSize: 12, fontFamily: "inherit", fontWeight: 600, color: "#dc2626",
+              }}
+            >
+              × Effacer la sélection
+            </button>
+          )}
+          {options.map(opt => {
+            const checked = selected.includes(opt.value)
+            return (
+              <label
+                key={opt.value}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "7px 9px", borderRadius: 8, cursor: "pointer",
+                  background: checked ? "rgba(0,179,169,0.08)" : "transparent",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggle(opt.value)}
+                  style={{ accentColor: "#00B3A9", cursor: "pointer", flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 13, color: "#1b2a4a", lineHeight: 1.4 }}>{opt.label}</span>
+              </label>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ContractCard({ c }: { c: Contract }) {
@@ -143,9 +236,9 @@ function ExplorerContent() {
   const [error, setError]         = useState("")
   const [page, setPage]           = useState(0)
 
-  const [statut,  setStatut]  = useState("")
-  const [region,  setRegion]  = useState("")
-  const [nature,  setNature]  = useState("")
+  const [statuts, setStatuts] = useState<string[]>([])
+  const [regions, setRegions] = useState<string[]>([])
+  const [natures, setNatures] = useState<string[]>([])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -153,10 +246,10 @@ function ExplorerContent() {
     let cancelled = false
     setLoading(true)
     setError("")
-    const filter: Record<string, string> = {}
-    if (statut) filter.statut = statut
-    if (region) filter.region = region
-    if (nature) filter.nature_contrat = nature
+    const filter: Record<string, string[]> = {}
+    if (statuts.length) filter.statut = statuts
+    if (regions.length) filter.region = regions
+    if (natures.length) filter.nature_contrat = natures
 
     contractApi.get_contracts(filter, page * PAGE_SIZE, PAGE_SIZE)
       .then(res => {
@@ -168,24 +261,14 @@ function ExplorerContent() {
       .finally(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
-  }, [statut, region, nature, page])
+  }, [statuts, regions, natures, page])
 
-  const changeFilter = (setter: (v: string) => void) => (val: string) => {
-    setter(val)
+  const toggleFilter = (setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
+    setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
     setPage(0)
   }
 
-  const hasFilters = statut || region || nature
-
-  const SELECT: React.CSSProperties = {
-    padding: "9px 14px", border: "1.5px solid #dce8e8", borderRadius: 10,
-    fontSize: 13, fontFamily: "inherit", color: "#1b2a4a", background: "white",
-    outline: "none", cursor: "pointer", appearance: "none",
-    backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%238ba5a5' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "right 12px center",
-    paddingRight: 32,
-  }
+  const hasFilters = statuts.length > 0 || regions.length > 0 || natures.length > 0
 
   return (
     <div style={{ padding: "32px 32px 64px", fontFamily: "'Outfit', system-ui, sans-serif" }}>
@@ -215,54 +298,34 @@ function ExplorerContent() {
       <div style={{
         background: "white", border: "1.5px solid #dce8e8", borderRadius: 14,
         padding: "16px 20px", marginBottom: 24,
-        display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
       }}>
-        {/* Status chips */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {STATUS_OPTIONS.map(s => {
-            const active = statut === s.value
-            return (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => changeFilter(setStatut)(s.value)}
-                style={{
-                  padding: "7px 14px",
-                  border: active ? "2px solid #00B3A9" : "1.5px solid #dce8e8",
-                  borderRadius: 50,
-                  fontSize: 12,
-                  fontFamily: "inherit",
-                  fontWeight: active ? 700 : 400,
-                  color: active ? "#00B3A9" : "#4a6a6a",
-                  background: active ? "rgba(0,179,169,0.08)" : "white",
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-              >
-                {s.label}
-              </button>
-            )
-          })}
-        </div>
-
-        <div style={{ width: 1, height: 28, background: "#dce8e8", flexShrink: 0 }} />
-
-        {/* Region select */}
-        <select value={region} onChange={e => changeFilter(setRegion)(e.target.value)} style={SELECT}>
-          <option value="">Toutes les régions</option>
-          {REGION_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-
-        {/* Nature select */}
-        <select value={nature} onChange={e => changeFilter(setNature)(e.target.value)} style={SELECT}>
-          <option value="">Toutes les natures</option>
-          {NATURE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        <MultiSelectDropdown
+          label="Statut"
+          options={STATUS_OPTIONS}
+          selected={statuts}
+          onToggle={v => toggleFilter(setStatuts, v)}
+          onClear={() => { setStatuts([]); setPage(0) }}
+        />
+        <MultiSelectDropdown
+          label="Région"
+          options={REGION_OPTIONS.map(r => ({ value: r, label: r }))}
+          selected={regions}
+          onToggle={v => toggleFilter(setRegions, v)}
+          onClear={() => { setRegions([]); setPage(0) }}
+        />
+        <MultiSelectDropdown
+          label="Nature"
+          options={NATURE_OPTIONS.map(n => ({ value: n, label: n }))}
+          selected={natures}
+          onToggle={v => toggleFilter(setNatures, v)}
+          onClear={() => { setNatures([]); setPage(0) }}
+        />
 
         {hasFilters && (
           <button
             type="button"
-            onClick={() => { changeFilter(setStatut)(""); changeFilter(setRegion)(""); changeFilter(setNature)("") }}
+            onClick={() => { setStatuts([]); setRegions([]); setNatures([]); setPage(0) }}
             style={{
               padding: "7px 14px", border: "1.5px solid #fecaca", borderRadius: 50,
               fontSize: 12, fontFamily: "inherit", fontWeight: 500,
