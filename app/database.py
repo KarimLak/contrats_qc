@@ -1,5 +1,5 @@
 # database.py
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 from typing import Generator
 import os
@@ -33,3 +33,55 @@ def get_db():
 
 def create_tables():
     Base.metadata.create_all(bind=engine)
+
+# ── Analytics support ────────────────────────────────────────────────────────
+# date_publication / date_fermeture on `contracts` are plain VARCHAR (raw SEAO
+# text, either "YYYY-MM-DD" or full ISO-8601 UTC like "2026-06-23T15:00:00Z"),
+# not native timestamp columns, and there's no migration tool in this repo to
+# alter the existing production table. safe_timestamptz() casts that text to a
+# real timestamptz (returning NULL instead of raising on any row that doesn't
+# parse) so analytics queries can do correct date-math instead of comparing
+# raw strings.
+#
+# A bare "v::timestamptz" cast is only zone-safe when the text already carries
+# an offset (the "...Z" ISO form) - for a bare date/time with no zone marker,
+# Postgres fills the missing offset from the session's `TimeZone` GUC, so the
+# same row would cast to a different instant depending on server config. That
+# would both be wrong (a Montreal midnight deadline could shift a few hours to
+# the previous calendar day) and make the function not actually IMMUTABLE,
+# which is unsafe to back a functional index with. So this branches: text with
+# an explicit zone marker casts straight to timestamptz (already absolute);
+# text without one is SEAO Quebec data, so it's interpreted as that wall-clock
+# instant in America/Montreal via "timestamp AT TIME ZONE 'zone'" - a fixed,
+# session-independent conversion. Both branches are then genuinely immutable.
+def ensure_analytics_support():
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE OR REPLACE FUNCTION safe_timestamptz(v text)
+            RETURNS timestamptz
+            LANGUAGE plpgsql
+            IMMUTABLE
+            AS $$
+            BEGIN
+                IF v IS NULL OR v = '' THEN
+                    RETURN NULL;
+                END IF;
+                IF v ~ '(Z|[+-]\\d{2}:?\\d{2})$' THEN
+                    RETURN v::timestamptz;
+                END IF;
+                RETURN (v::timestamp) AT TIME ZONE 'America/Montreal';
+            EXCEPTION WHEN OTHERS THEN
+                RETURN NULL;
+            END;
+            $$;
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_contracts_fermeture_ts "
+            "ON contracts (safe_timestamptz(date_fermeture))"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_contracts_publication_ts "
+            "ON contracts (safe_timestamptz(date_publication))"
+        ))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_contracts_region ON contracts (region)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_contracts_statut ON contracts (statut)"))

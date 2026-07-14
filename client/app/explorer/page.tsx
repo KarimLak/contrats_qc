@@ -1,5 +1,6 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
+import { Suspense, useState, useEffect, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import AppLayout from "@/components/AppLayout"
 import { ContractCard } from "@/components/ContractCard"
 import { contractApi, type Contract } from "@/api/contract"
@@ -25,6 +26,49 @@ const NATURE_OPTIONS = [
   "Partenariat", "Travaux de construction",
   "Ventes de biens immeubles", "Ventes de biens meubles",
 ]
+
+// Mirrors app/type/tender.py's TenderCategory values.
+const CATEGORIE_OPTIONS = [
+  "Aérospatiale", "Alimentation", "Ameublement", "Armement",
+  "Communication, détection et fibres optiques", "Constructions préfabriquées",
+  "Cosmétiques et articles de toilette", "Énergie",
+  "Entretien d'équipement de bureau et d'informatique",
+  "Équipement de lutte contre l'incendie, de sécurité et de protection",
+  "Équipement de transport et pièces de rechange", "Équipement industriel",
+  "Fourniture et équipement médicaux et produits pharmaceutiques",
+  "Instruments scientifiques", "Intégration de systèmes", "Machinerie et outils",
+  "Marine", "Matériaux de construction", "Matériel de bureau",
+  "Matériel de climatisation et de réfrigération", "Matériel informatique et logiciel",
+  "Moteurs, turbines, composants et accessoires connexes",
+  "Papeterie et fournitures de bureau", "Préparation alimentaire et équipement de service",
+  "Produits divers", "Produits électriques et électroniques",
+  "Produits et spécialités chimiques", "Produits finis",
+  "Publications, formulaires et articles en papier", "Textiles et vêtements",
+  "Véhicules spéciaux", "Indéterminé", "Concession", "Partenariat",
+  "Contrôle de la qualité, essais et inspections et services de représentants techniques",
+  "Entretien, réparation, modification, réfection et installation de biens et d'équipement",
+  "Études spéciales et analyses", "Exploitation des installations gouvernementales",
+  "Location à bail ou location d'installations immobilières",
+  "Location à bail/Location d'équipement", "Recherche et développement (R et D)",
+  "Services d'architecture et d'ingénierie",
+  "Services de communication, de photographie, de cartographie, d'impression et de publication",
+  "Services de garde et autres services connexes", "Services de ressources naturelles",
+  "Services de santé et services sociaux",
+  "Services de soutien professionnel et administratif et services de soutien à la gestion",
+  "Services de transport, de voyage et de déménagement", "Services environnementaux",
+  "Services financiers et autres services connexes", "Services pédagogiques et formation",
+  "Services publics", "Traitement de l'information et services de télécommunications connexes",
+  "Autres travaux de construction", "Bâtiments", "Ouvrages de génie civil",
+  "Vente de biens immeubles", "Vente de biens meubles",
+]
+
+// A categorie/region arriving via URL (e.g. from the analytics radar) might not
+// be one of the options above if the taxonomy drifts - still include it so the
+// filter actually applies, even if the dropdown can't show a friendly checkbox for it.
+function withUrlValues(options: string[], fromUrl: string[]): string[] {
+  const extra = fromUrl.filter(v => !options.includes(v))
+  return extra.length ? [...options, ...extra] : options
+}
 
 function MultiSelectDropdown({
   label, options, selected, onToggle, onClear,
@@ -123,15 +167,23 @@ function MultiSelectDropdown({
 }
 
 function ExplorerContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
   const [contracts, setContracts] = useState<Contract[]>([])
   const [total, setTotal]         = useState(0)
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState("")
   const [page, setPage]           = useState(0)
 
-  const [statuts, setStatuts] = useState<string[]>([])
-  const [regions, setRegions] = useState<string[]>([])
-  const [natures, setNatures] = useState<string[]>([])
+  // Seeded once from the URL on mount (e.g. a deep link from the analytics
+  // radar: /explorer?region=Laval&categorie=Services+de+garde...) - read only
+  // in the initializer, not in an effect keyed on searchParams, so typing in
+  // a filter here doesn't fight with the URL on every keystroke.
+  const [statuts, setStatuts]     = useState<string[]>(() => searchParams.getAll("statut"))
+  const [regions, setRegions]     = useState<string[]>(() => searchParams.getAll("region"))
+  const [natures, setNatures]     = useState<string[]>(() => searchParams.getAll("nature_contrat"))
+  const [categories, setCategories] = useState<string[]>(() => searchParams.getAll("categorie"))
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -143,6 +195,7 @@ function ExplorerContent() {
     if (statuts.length) filter.statut = statuts
     if (regions.length) filter.region = regions
     if (natures.length) filter.nature_contrat = natures
+    if (categories.length) filter.categorie = categories
 
     contractApi.get_contracts(filter, page * PAGE_SIZE, PAGE_SIZE)
       .then(res => {
@@ -154,14 +207,27 @@ function ExplorerContent() {
       .finally(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
-  }, [statuts, regions, natures, page])
+  }, [statuts, regions, natures, categories, page])
+
+  // Keeps the URL in sync so the current filter selection stays bookmarkable/
+  // shareable - a courtesy on top of the required read-on-mount above.
+  useEffect(() => {
+    const params = new URLSearchParams()
+    statuts.forEach(v => params.append("statut", v))
+    regions.forEach(v => params.append("region", v))
+    natures.forEach(v => params.append("nature_contrat", v))
+    categories.forEach(v => params.append("categorie", v))
+    const query = params.toString()
+    router.replace(query ? `/explorer?${query}` : "/explorer", { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statuts, regions, natures, categories])
 
   const toggleFilter = (setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
     setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
     setPage(0)
   }
 
-  const hasFilters = statuts.length > 0 || regions.length > 0 || natures.length > 0
+  const hasFilters = statuts.length > 0 || regions.length > 0 || natures.length > 0 || categories.length > 0
 
   return (
     <div style={{ padding: "32px 32px 64px", fontFamily: "'Outfit', system-ui, sans-serif" }}>
@@ -214,11 +280,18 @@ function ExplorerContent() {
           onToggle={v => toggleFilter(setNatures, v)}
           onClear={() => { setNatures([]); setPage(0) }}
         />
+        <MultiSelectDropdown
+          label="Catégorie"
+          options={withUrlValues(CATEGORIE_OPTIONS, categories).map(c => ({ value: c, label: c }))}
+          selected={categories}
+          onToggle={v => toggleFilter(setCategories, v)}
+          onClear={() => { setCategories([]); setPage(0) }}
+        />
 
         {hasFilters && (
           <button
             type="button"
-            onClick={() => { setStatuts([]); setRegions([]); setNatures([]); setPage(0) }}
+            onClick={() => { setStatuts([]); setRegions([]); setNatures([]); setCategories([]); setPage(0) }}
             style={{
               padding: "7px 14px", border: "1.5px solid #fecaca", borderRadius: 50,
               fontSize: 12, fontFamily: "inherit", fontWeight: 500,
@@ -311,10 +384,24 @@ function ExplorerContent() {
   )
 }
 
+function ExplorerFallback() {
+  return (
+    <div style={{ padding: "32px 32px 64px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} style={{ height: 110, borderRadius: 14, background: "#f0f4f4" }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ExplorerPage() {
   return (
     <AppLayout>
-      <ExplorerContent />
+      <Suspense fallback={<ExplorerFallback />}>
+        <ExplorerContent />
+      </Suspense>
     </AppLayout>
   )
 }

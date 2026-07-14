@@ -14,7 +14,7 @@ interface Props {
 export default function UpgradeGate({ children, feature, description, benefits, minHeight = 480 }: Props) {
   const { subscription } = useAuth()
 
-  if (subscription !== "free") return <>{children}</>
+  if (subscription !== "user") return <>{children}</>
 
   return (
     <div style={{ position: "relative", minHeight }}>

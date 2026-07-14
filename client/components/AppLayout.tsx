@@ -39,8 +39,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const subLabel = subscription === "enterprise" ? "Enterprise" : subscription === "pro" ? "Pro" : "Gratuit"
-  const subColor = subscription === "free" ? "rgba(255,255,255,0.12)" : "#00B3A9"
-  const subText  = subscription === "free" ? "rgba(255,255,255,0.5)" : "white"
+  const subColor = subscription === "user" ? "rgba(255,255,255,0.12)" : "#00B3A9"
+  const subText  = subscription === "user" ? "rgba(255,255,255,0.5)" : "white"
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Outfit', system-ui, sans-serif" }}>
@@ -67,7 +67,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <span style={{ padding: "3px 10px", borderRadius: 20, background: subColor, color: subText, fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" }}>
               {subLabel}
             </span>
-            {subscription === "free" && (
+            {subscription === "user" && (
               <Link href="/pricing" style={{ fontSize: 11, color: "#00B3A9", textDecoration: "none", fontWeight: 600 }}>
                 Upgrader →
               </Link>
@@ -82,7 +82,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               return <div key={i} style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "8px 20px" }} />
             }
             const active   = pathname === item.href || pathname.startsWith(item.href + "/")
-            const locked   = item.pro && subscription === "free"
+            const locked   = item.pro && subscription === "user"
             return (
               <Link key={item.href} href={item.href} style={{
                 display: "flex", alignItems: "center", gap: 11, padding: "10px 20px",

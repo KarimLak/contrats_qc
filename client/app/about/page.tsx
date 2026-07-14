@@ -91,7 +91,6 @@ export default function AboutPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
             {VALUES.map(v => (
               <div key={v.title} style={{ background: "white", border: "1.5px solid #dce8e8", borderRadius: 16, padding: "32px 28px" }}>
-                <div style={{ fontSize: 32, marginBottom: 16 }}>{v.icon}</div>
                 <h3 style={{ fontSize: 17, fontWeight: 700, color: "#1b2a4a", marginBottom: 10 }}>{v.title}</h3>
                 <p style={{ fontSize: 14, color: "#4a6a6a", lineHeight: 1.7 }}>{v.desc}</p>
               </div>

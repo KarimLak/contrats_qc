@@ -3,12 +3,12 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.extension import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
-from app.routers import auth, user, contract, profile
+from app.routers import auth, user, contract, profile, analytics
 from slowapi import Limiter
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import limiter
-from app.database import create_tables
+from app.database import create_tables, ensure_analytics_support
 
 
 app = FastAPI()
@@ -17,6 +17,7 @@ app.include_router(auth.router, prefix='/v1')
 app.include_router(user.router, prefix='/v1')
 app.include_router(contract.router, prefix='/v1')
 app.include_router(profile.router, prefix='/v1')
+app.include_router(analytics.router, prefix='/v1')
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -30,6 +31,7 @@ app.add_middleware(
 )
 
 create_tables()
+ensure_analytics_support()
 
 @app.get("/health")
 def health():
