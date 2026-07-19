@@ -128,3 +128,44 @@ def ensure_search_support():
             "CREATE INDEX IF NOT EXISTS ix_contracts_search_vector "
             "ON contracts USING GIN (search_vector)"
         ))
+
+# ── Alerting support ────────────────────────────────────────────────────────
+# first_seen_at backs match_new_contracts() (app/services/alert.py): "which
+# contracts are new since the alert engine's last run." NOT NULL DEFAULT
+# now() on ADD COLUMN backfills every pre-existing row to the moment this ran
+# (Postgres computes the default once and stores it in the catalog for
+# existing rows — a fast, single pass, not a per-row rewrite) — exactly the
+# "backfill à now()" the spec asks for, with no separate UPDATE needed.
+#
+# alert_recipients backfill: every user must have exactly one is_default=true
+# recipient (their account email) — this creates it for accounts that
+# existed before this feature; ensure_default_recipient() in
+# app/services/alert.py covers every account created from here on.
+def ensure_alerts_support():
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS first_seen_at "
+            "TIMESTAMPTZ NOT NULL DEFAULT now()"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_contracts_first_seen_at ON contracts (first_seen_at)"
+        ))
+        conn.execute(text("""
+            INSERT INTO alert_recipients (user_id, email, is_default, is_verified, created_at)
+            SELECT u.id, u.email, true, true, now()
+            FROM users u
+            WHERE NOT EXISTS (
+                SELECT 1 FROM alert_recipients ar
+                WHERE ar.user_id = u.id AND ar.is_default = true
+            )
+        """))
+        # daily/weekly alerts need a time of day to send at (app/schemas/alert.py
+        # enforces this on new writes) — backfill any pre-existing row created
+        # before that rule existed so it isn't left in a now-invalid state.
+        conn.execute(text(
+            "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS send_time TIME NULL"
+        ))
+        conn.execute(text(
+            "UPDATE alerts SET send_time = TIME '08:00' "
+            "WHERE send_time IS NULL AND frequency IN ('daily', 'weekly')"
+        ))

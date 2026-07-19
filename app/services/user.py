@@ -11,6 +11,7 @@ from app.schemas.user import UserLogin, UserRegister, UserResponse
 from app.schemas.token import LogoutRequest, TokenResponse, TokensResponse
 from app.models.blacklist import BlackList
 from app.repositories.profile import create_business_profile, last_business_id
+from app.services.alert import ensure_default_alert_for, ensure_default_recipient_for
 
 def register(payload: UserRegister, db: Session) -> UserResponse:
     existing = get_user(payload.username, db)
@@ -18,7 +19,13 @@ def register(payload: UserRegister, db: Session) -> UserResponse:
         raise HTTPException(status_code=500, detail="User already exists")
     business_id = last_business_id(db) + 1 if last_business_id(db) else 1
     create_business_profile(db, business_id, payload.business)
-    return create_user(payload.username, payload.email, hash_password(payload.password), payload.roles, business_id, db)
+    user = create_user(payload.username, payload.email, hash_password(payload.password), payload.roles, business_id, db)
+    # Every user gets their account-email recipient; the system alert only
+    # for pro/enterprise (ensure_default_alert_for no-ops otherwise) — both
+    # idempotent, neither touches the response this endpoint already returns.
+    ensure_default_recipient_for(user, db)
+    ensure_default_alert_for(user, db)
+    return user
    
 def login(payload: UserLogin, db: Session) -> TokensResponse:
     user = get_user(payload.username, db)

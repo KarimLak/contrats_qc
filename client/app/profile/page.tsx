@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import AppLayout from "@/components/AppLayout"
 import { profileApi, type BusinessProfile } from "@/api/profile"
+import { alertRecipientsApi, type AlertRecipient } from "@/api/alerts"
 import { getAccessToken } from "@/context/AuthContext"
 import {
   SECTOR_TREE, sectorLabel, categoryLabel, CONTRACT_TYPE_OPTIONS, REGION_OPTIONS,
@@ -63,6 +64,102 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
     <button type="button" onClick={onClick} style={chipStyle(active)}>
       {label}
     </button>
+  )
+}
+
+// Own resource (alert_recipients), independent of the business-profile
+// edit flow above — every account has exactly one is_default=true row
+// (see ensure_default_recipient in app/services/alert.py), and PATCHing
+// its email is reachable by any authenticated user regardless of PRO
+// status (see the comment on app/routers/alert_recipient.py).
+function DefaultRecipientCard() {
+  const [recipient, setRecipient] = useState<AlertRecipient | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(false)
+  const [email, setEmail] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    const token = getAccessToken()
+    if (!token) { setLoading(false); return }
+    alertRecipientsApi.list(token)
+      .then(rs => setRecipient(rs.find(r => r.is_default) ?? null))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading || !recipient) return null
+
+  const startEdit = () => { setEmail(recipient.email); setError(""); setSaved(false); setEditing(true) }
+
+  const save = async () => {
+    const token = getAccessToken()
+    if (!token) { setError("Session expirée. Veuillez vous reconnecter."); return }
+    if (!email.trim()) { setError("L'adresse courriel est requise."); return }
+    setSaving(true)
+    setError("")
+    try {
+      const updated = await alertRecipientsApi.update(recipient.id, { email: email.trim() }, token)
+      setRecipient(updated)
+      setEditing(false)
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur lors de l'enregistrement.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={CARD}>
+      <div style={SECTION_TITLE}>Courriel des alertes</div>
+      <p style={{ fontSize: 12.5, color: "#8ba5a5", marginBottom: 12, lineHeight: 1.5 }}>
+        L'adresse qui reçoit vos alertes par défaut, y compris l'alerte « Mon profil d'entreprise ».
+      </p>
+      {saved && !editing && (
+        <div style={{ background: "#dcfce7", border: "1px solid #86efac", borderRadius: 8, padding: "8px 12px", marginBottom: 10, color: "#15803d", fontSize: 12.5 }}>
+          Courriel mis à jour.
+        </div>
+      )}
+      {error && (
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "8px 12px", marginBottom: 10, color: "#b91c1c", fontSize: 12.5 }}>
+          {error}
+        </div>
+      )}
+      {editing ? (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            style={{ ...INPUT, flex: "1 1 240px", width: "auto" }}
+          />
+          <button
+            type="button" onClick={save} disabled={saving}
+            style={{ padding: "9px 18px", background: saving ? "#8ba5a5" : "#00B3A9", border: "none", borderRadius: 10, color: "white", fontSize: 13, fontWeight: 700, fontFamily: "inherit", cursor: saving ? "not-allowed" : "pointer" }}
+          >
+            {saving ? "…" : "Enregistrer"}
+          </button>
+          <button
+            type="button" onClick={() => setEditing(false)} disabled={saving}
+            style={{ padding: "9px 18px", background: "white", border: "1.5px solid #dce8e8", borderRadius: 10, color: "#4a6a6a", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
+          >
+            Annuler
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 15, color: "#1b2a4a", fontWeight: 600 }}>{recipient.email}</span>
+          <button
+            type="button" onClick={startEdit}
+            style={{ padding: "5px 14px", border: "1.5px solid #dce8e8", borderRadius: 8, background: "white", fontSize: 12, fontWeight: 600, color: "#4a6a6a", cursor: "pointer", fontFamily: "inherit" }}
+          >
+            Modifier
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -283,6 +380,8 @@ function ProfileContent() {
               </div>
             </div>
           </div>
+
+          <DefaultRecipientCard />
         </>
       ) : form && (
         /* ── Edit mode ───────────────────────────────────────────── */

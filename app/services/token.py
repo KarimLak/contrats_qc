@@ -8,6 +8,8 @@ from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.user import User
+from app.repositories.user import get_user
 from app.schemas.token import TokenResponse
 from app.services.blacklist import is_black_list_token
 
@@ -77,3 +79,42 @@ def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme_optio
         return verify_token(token, db)
     except HTTPException:
         return None
+
+# No backend PRO-gate dependency existed anywhere in this app before this
+# (Analytics/Saved are gated client-only, see UpgradeGate) — this is the
+# first feature with real ownership/cost (outbound email, a matching
+# engine), so /alerts and /alert-recipients enforce it server-side.
+# "pro" mirrors client/context/AuthContext.tsx's deriveSubscription(): admin
+# counts as pro-or-above everywhere it's checked in the frontend, so it does
+# here too.
+PRO_ROLES = {"pro", "enterprise", "admin"}
+ENTERPRISE_ROLES = {"enterprise", "admin"}
+
+# Plain "resolve the caller's User row, any tier" — for endpoints that need
+# the full User object (not just the username string get_current_user
+# returns) but have no PRO/enterprise gate of their own, e.g. a user's own
+# default alert recipient (see app/routers/alert_recipient.py).
+def get_current_authenticated_user(username: str = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
+    user = get_user(username, db)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+def get_current_pro_user(username: str = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
+    user = get_user(username, db)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not PRO_ROLES.intersection(user.roles or []):
+        raise HTTPException(status_code=403, detail="Pro subscription required")
+    return user
+
+# Additional (non-default) alert recipients are an enterprise-tier
+# privilege — a plain pro user only ever has their one account-email
+# recipient.
+def get_current_enterprise_user(username: str = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
+    user = get_user(username, db)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not ENTERPRISE_ROLES.intersection(user.roles or []):
+        raise HTTPException(status_code=403, detail="Enterprise subscription required")
+    return user

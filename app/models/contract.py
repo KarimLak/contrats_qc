@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, Boolean, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -86,4 +87,15 @@ class Contract(Base):
     # app/database.py) — never written by the app, only read in query
     # expressions (Contract.search_vector.op('@@')(...)).
     search_vector: Mapped[Optional[str]] = mapped_column(TSVECTOR, nullable=True)
+
+    # ── Alerting ──────────────────────────────────────────────────────────────
+    # Added post-hoc via ALTER TABLE (see ensure_alerts_support() in
+    # app/database.py, same pattern as search_vector above) — the sync
+    # pipeline doesn't set this yet, so every pre-existing row backfills to
+    # the moment the column was added; only genuinely new rows from that
+    # point on will have a first_seen_at that isn't also their "backfilled"
+    # timestamp. match_new_contracts() filters on this, not date_publication
+    # (SEAO's own publish date), since a contract can be re-synced/updated
+    # without being newly published.
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

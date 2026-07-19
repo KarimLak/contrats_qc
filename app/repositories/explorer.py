@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session, load_only
 
 from app.models.contract import Contract
 from app.models.profile import BusinessProfile
+from app.models.user import User
 from app.repositories.contract import _not_expired, _LISTING_COLUMNS, compatible_contracts_query
+from app.repositories.profile import business_profile
 
 # ── Search ────────────────────────────────────────────────────────────────────
 # french_unaccent (see ensure_search_support() in app/database.py) so a query
@@ -114,6 +116,27 @@ def _base_predicates(
         if pred is not None:
             predicates.append(pred)
     return predicates
+
+# ── Shared filter-to-SQL entry point (Explorateur listing + alert matching) ──
+# `filters` here is the flat shape alerts.filters JSONB stores, and what the
+# Explorateur's query params parse into: q/closing_within/match sit alongside
+# the plain dimension filters (statut/region/nature_contrat/categorie/
+# organisation) in one dict — unlike _base_predicates' separate positional
+# params, which the Explorateur router/service still call directly and
+# unchanged. This is a thin wrapper, not a rewrite: it destructures that
+# single dict and delegates straight to _base_predicates, so nothing about
+# the existing Explorateur listing/count/facets code paths changes at all —
+# see tests/test_build_contract_query_parity.py for the proof.
+_DIMENSION_KEYS = ("statut", "region", "nature_contrat", "categorie", "organisation")
+
+def build_contract_query(filters: dict, user: Optional[User], db: Session) -> list:
+    profile = None
+    if filters.get("match") == "profil":
+        if user is None:
+            raise ValueError("match=profil requires an authenticated user")
+        profile = business_profile(user.business_id, db)
+    dimension_filters = {k: filters.get(k) for k in _DIMENSION_KEYS}
+    return _base_predicates(dimension_filters, filters.get("q"), filters.get("closing_within"), profile)
 
 def get_explorer_count(
     filters: Dict[str, List[str]], q: Optional[str], closing_within: Optional[int], db: Session,

@@ -1,296 +1,17 @@
 "use client"
-import { Suspense, useState, useEffect, useRef, useCallback } from "react"
+import { Suspense, useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import AppLayout from "@/components/AppLayout"
 import { ContractCard } from "@/components/ContractCard"
-import { contractApi, type ExplorerContract, type ExplorerFacets, type ExplorerSort, type OrganisationSuggestion } from "@/api/contract"
+import { ExplorerFilterBar, useDebounced } from "@/components/ExplorerFilterBar"
+import { contractApi, type ExplorerContract, type ExplorerFacets, type ExplorerSort } from "@/api/contract"
 import { savedContractsApi } from "@/api/savedContracts"
 import { getAccessToken } from "@/context/AuthContext"
 import { useToast } from "@/components/Toast"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
-
-const SORT_OPTIONS: { value: ExplorerSort; label: string }[] = [
-  { value: "date_fermeture", label: "Date de fermeture (urgent d'abord)" },
-  { value: "date_publication", label: "Date de publication (récent d'abord)" },
-  { value: "pertinence", label: "Pertinence" },
-]
-
-const CLOSING_WITHIN_OPTIONS: { value: number | null; label: string }[] = [
-  { value: 7, label: "7 jours" },
-  { value: 14, label: "14 jours" },
-  { value: 30, label: "30 jours" },
-  { value: null, label: "Tous" },
-]
-
-// A value picked from the URL (deep link) or from a stale facet list might
-// not appear in the live facet counts (e.g. it now matches 0 results given
-// the other active filters) — keep it selectable/visible anyway with a
-// count of 0 rather than letting it silently vanish from the checkbox list
-// while still being applied as an active filter.
-function mergeFacetOptions(
-  facetOptions: { value: string; count: number }[], selected: string[],
-): { value: string; count: number }[] {
-  const known = new Set(facetOptions.map(o => o.value))
-  const missing = selected.filter(v => !known.has(v)).map(v => ({ value: v, count: 0 }))
-  return [...facetOptions, ...missing]
-}
-
-function useDebounced<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delayMs)
-    return () => clearTimeout(t)
-  }, [value, delayMs])
-  return debounced
-}
-
-function MultiSelectDropdown({
-  label, options, selected, onToggle, onClear,
-}: {
-  label: string
-  options: { value: string; count: number }[]
-  selected: string[]
-  onToggle: (value: string) => void
-  onClear: () => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", onClick)
-    return () => document.removeEventListener("mousedown", onClick)
-  }, [open])
-
-  const active = selected.length > 0
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "9px 14px",
-          border: active ? "2px solid #00B3A9" : "1.5px solid #dce8e8",
-          borderRadius: 10,
-          fontSize: 13,
-          fontFamily: "inherit",
-          fontWeight: active ? 600 : 400,
-          color: active ? "#00B3A9" : "#4a6a6a",
-          background: active ? "rgba(0,179,169,0.08)" : "white",
-          cursor: "pointer",
-          transition: "all 0.15s",
-        }}
-      >
-        {label}{active ? ` (${selected.length})` : ""}
-        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ flexShrink: 0 }}>
-          <path d="M1 1L5 5L9 1" stroke={active ? "#00B3A9" : "#8ba5a5"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 20,
-          background: "white", border: "1.5px solid #dce8e8", borderRadius: 12,
-          boxShadow: "0 8px 24px rgba(27,42,74,0.12)",
-          padding: 8, minWidth: 260, maxHeight: 320, overflowY: "auto",
-          display: "flex", flexDirection: "column", gap: 2,
-        }}>
-          {active && (
-            <button
-              type="button"
-              onClick={onClear}
-              style={{
-                textAlign: "left", padding: "6px 8px", marginBottom: 4,
-                border: "none", background: "none", cursor: "pointer",
-                fontSize: 12, fontFamily: "inherit", fontWeight: 600, color: "#dc2626",
-              }}
-            >
-              × Effacer la sélection
-            </button>
-          )}
-          {options.length === 0 ? (
-            <div style={{ padding: "10px 8px", fontSize: 12.5, color: "#8ba5a5" }}>Aucune option.</div>
-          ) : options.map(opt => {
-            const checked = selected.includes(opt.value)
-            return (
-              <label
-                key={opt.value}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "7px 9px", borderRadius: 8, cursor: "pointer",
-                  background: checked ? "rgba(0,179,169,0.08)" : "transparent",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => onToggle(opt.value)}
-                  style={{ accentColor: "#00B3A9", cursor: "pointer", flexShrink: 0 }}
-                />
-                <span style={{ fontSize: 13, color: "#1b2a4a", lineHeight: 1.4, flex: 1 }}>{opt.value}</span>
-                <span style={{ fontSize: 11.5, color: "#8ba5a5", fontWeight: 600, flexShrink: 0 }}>{opt.count}</span>
-              </label>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function SortDropdown({ value, onChange }: { value: ExplorerSort; onChange: (v: ExplorerSort) => void }) {
-  return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value as ExplorerSort)}
-      style={{
-        padding: "9px 14px", border: "1.5px solid #dce8e8", borderRadius: 10,
-        fontSize: 13, fontFamily: "inherit", color: "#1b2a4a", background: "white",
-        cursor: "pointer",
-      }}
-    >
-      {SORT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-    </select>
-  )
-}
-
-function ClosingWithinFilter({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
-  return (
-    <div style={{ display: "flex", gap: 4, background: "#f7fafa", borderRadius: 10, padding: 3 }}>
-      {CLOSING_WITHIN_OPTIONS.map(opt => {
-        const active = opt.value === value
-        return (
-          <button
-            key={String(opt.value)}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            style={{
-              padding: "6px 12px", borderRadius: 8, border: "none",
-              fontSize: 12.5, fontFamily: "inherit", fontWeight: active ? 700 : 500,
-              color: active ? "white" : "#4a6a6a",
-              background: active ? "#00B3A9" : "transparent",
-              cursor: "pointer", transition: "all 0.15s",
-            }}
-          >
-            {opt.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-// Free-text typeahead, not a checkbox dropdown — organisations have a long
-// tail (373 distinct at last count), so a static/full list would be
-// unusable. Selected organisations render as removable chips.
-function OrganisationTypeahead({
-  selected, onAdd, onRemove,
-}: {
-  selected: string[]
-  onAdd: (name: string) => void
-  onRemove: (name: string) => void
-}) {
-  const [text, setText] = useState("")
-  const debouncedText = useDebounced(text, SEARCH_DEBOUNCE_MS)
-  const [suggestions, setSuggestions] = useState<OrganisationSuggestion[]>([])
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open || debouncedText.length < 2) { setSuggestions([]); return }
-    let cancelled = false
-    contractApi.get_organisation_suggestions(debouncedText, 8)
-      .then(res => { if (!cancelled) setSuggestions(res.filter(s => !selected.includes(s.name))) })
-      .catch(() => {})
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedText, open])
-
-  useEffect(() => {
-    if (!open) return
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", onClick)
-    return () => document.removeEventListener("mousedown", onClick)
-  }, [open])
-
-  return (
-    <div ref={ref} style={{ position: "relative", minWidth: 220 }}>
-      <div style={{
-        display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6,
-        padding: selected.length ? "5px 8px" : "9px 14px",
-        border: selected.length ? "2px solid #00B3A9" : "1.5px solid #dce8e8",
-        borderRadius: 10, background: selected.length ? "rgba(0,179,169,0.08)" : "white",
-      }}>
-        {selected.map(name => (
-          <span key={name} style={{
-            display: "flex", alignItems: "center", gap: 5,
-            fontSize: 11.5, fontWeight: 600, color: "#00786f",
-            background: "white", border: "1px solid #b3e6e3",
-            borderRadius: 20, padding: "3px 6px 3px 10px",
-          }}>
-            {name.length > 24 ? name.slice(0, 24) + "…" : name}
-            <button
-              type="button"
-              onClick={() => onRemove(name)}
-              style={{ border: "none", background: "none", cursor: "pointer", color: "#00786f", fontSize: 13, padding: 0, lineHeight: 1 }}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          value={text}
-          onChange={e => { setText(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)}
-          placeholder={selected.length ? "" : "Organisme…"}
-          style={{
-            border: "none", outline: "none", fontSize: 13, fontFamily: "inherit",
-            color: "#1b2a4a", background: "transparent", flex: 1, minWidth: 90, padding: "3px 0",
-          }}
-        />
-      </div>
-
-      {open && (debouncedText.length >= 2) && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 20,
-          background: "white", border: "1.5px solid #dce8e8", borderRadius: 12,
-          boxShadow: "0 8px 24px rgba(27,42,74,0.12)",
-          padding: 8, minWidth: 280, maxHeight: 280, overflowY: "auto",
-          display: "flex", flexDirection: "column", gap: 2,
-        }}>
-          {suggestions.length === 0 ? (
-            <div style={{ padding: "10px 8px", fontSize: 12.5, color: "#8ba5a5" }}>Aucun organisme trouvé.</div>
-          ) : suggestions.map(s => (
-            <button
-              key={s.name}
-              type="button"
-              onClick={() => { onAdd(s.name); setText(""); setSuggestions([]) }}
-              style={{
-                display: "flex", justifyContent: "space-between", gap: 10,
-                textAlign: "left", padding: "7px 9px", borderRadius: 8,
-                border: "none", background: "transparent", cursor: "pointer",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,179,169,0.08)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-            >
-              <span style={{ fontSize: 13, color: "#1b2a4a" }}>{s.name}</span>
-              <span style={{ fontSize: 11.5, color: "#8ba5a5", fontWeight: 600, flexShrink: 0 }}>{s.count}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 function ExplorerContent() {
   const router = useRouter()
@@ -329,14 +50,6 @@ function ExplorerContent() {
   const [matchProfil, setMatchProfil] = useState<boolean>(() => searchParams.get("match") === "profil")
 
   const debouncedQ = useDebounced(q, SEARCH_DEBOUNCE_MS)
-
-  const toggleFilter = (setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
-    setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
-  }
-
-  const hasFilters = statuts.length > 0 || regions.length > 0 || natures.length > 0
-    || categories.length > 0 || organisations.length > 0 || closingWithin !== null || debouncedQ.length > 0
-    || matchProfil
 
   const buildQuery = useCallback((cursor: string | null) => ({
     q: debouncedQ || undefined,
@@ -491,83 +204,33 @@ function ExplorerContent() {
         )}
       </div>
 
-      {/* Filter bar */}
-      <div style={{
-        background: "white", border: "1.5px solid #dce8e8", borderRadius: 14,
-        padding: "16px 20px", marginBottom: 24,
-        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-      }}>
-        <MultiSelectDropdown
-          label="Statut"
-          options={mergeFacetOptions(facets?.statut ?? [], statuts).map(o => ({ value: o.value, count: o.count }))}
-          selected={statuts}
-          onToggle={v => toggleFilter(setStatuts, v)}
-          onClear={() => setStatuts([])}
-        />
-        <MultiSelectDropdown
-          label="Région"
-          options={mergeFacetOptions(facets?.region ?? [], regions)}
-          selected={regions}
-          onToggle={v => toggleFilter(setRegions, v)}
-          onClear={() => setRegions([])}
-        />
-        <MultiSelectDropdown
-          label="Nature"
-          options={mergeFacetOptions(facets?.nature_contrat ?? [], natures)}
-          selected={natures}
-          onToggle={v => toggleFilter(setNatures, v)}
-          onClear={() => setNatures([])}
-        />
-        <MultiSelectDropdown
-          label="Catégorie"
-          options={mergeFacetOptions(facets?.categorie ?? [], categories)}
-          selected={categories}
-          onToggle={v => toggleFilter(setCategories, v)}
-          onClear={() => setCategories([])}
-        />
-        <OrganisationTypeahead
-          selected={organisations}
-          onAdd={name => setOrganisations(prev => [...prev, name])}
-          onRemove={name => setOrganisations(prev => prev.filter(n => n !== name))}
-        />
-        <ClosingWithinFilter value={closingWithin} onChange={setClosingWithin} />
-        <SortDropdown value={sort} onChange={setSort} />
+      {/* Filter bar (shared with the Alertes create/edit form — see client/components/ExplorerFilterBar.tsx) */}
+      <ExplorerFilterBar
+        state={{ statuts, regions, natures, categories, organisations, closingWithin, sort, matchProfil }}
+        setStatuts={setStatuts}
+        setRegions={setRegions}
+        setNatures={setNatures}
+        setCategories={setCategories}
+        setOrganisations={setOrganisations}
+        setClosingWithin={setClosingWithin}
+        setSort={setSort}
+        setMatchProfil={setMatchProfil}
+        facets={facets}
+        hasExtraActiveFilter={debouncedQ.length > 0}
+        onResetExtra={() => setQ("")}
+      />
 
-        {matchProfil && (
-          <span style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "8px 12px", borderRadius: 10, fontSize: 12.5, fontWeight: 600,
-            color: "#00786f", background: "rgba(0,179,169,0.08)", border: "1.5px solid #00B3A9",
-          }}>
-            Compatible avec votre profil
-            <button
-              type="button"
-              onClick={() => setMatchProfil(false)}
-              aria-label="Retirer le filtre profil"
-              style={{ border: "none", background: "none", cursor: "pointer", color: "#00786f", fontSize: 14, padding: 0, lineHeight: 1 }}
-            >
-              ×
-            </button>
-          </span>
-        )}
-
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={() => {
-              setQ(""); setStatuts([]); setRegions([]); setNatures([]); setCategories([])
-              setOrganisations([]); setClosingWithin(null); setMatchProfil(false)
-            }}
-            style={{
-              padding: "7px 14px", border: "1.5px solid #fecaca", borderRadius: 50,
-              fontSize: 12, fontFamily: "inherit", fontWeight: 500,
-              color: "#dc2626", background: "#fef2f2", cursor: "pointer",
-              marginLeft: "auto",
-            }}
-          >
-            × Réinitialiser
-          </button>
-        )}
+      {/* Pre-fills the alert form with whatever's active in the URL right now. */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20, marginTop: -12 }}>
+        <Link
+          href={`/alerts?create=1&${searchParams.toString()}`}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            fontSize: 13, fontWeight: 600, color: "#00B3A9", textDecoration: "none",
+          }}
+        >
+          🔔 Créer une alerte à partir de cette recherche
+        </Link>
       </div>
 
       {/* Contract list */}
