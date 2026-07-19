@@ -2,81 +2,82 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
-# ── Section 1: Le pouls du marché ────────────────────────────────────────────
-class PulseStats(BaseModel):
-    open_now: int
+# ── Block 1: KPIs "Votre marché" ─────────────────────────────────────────────
+class ProfileKpis(BaseModel):
+    profile_ready: bool
+    compatible_open: int
     closing_7d: int
-    published_this_week: int
-    published_last_week: int
-    published_wow_pct: Optional[float] = None
-    median_days_to_close: Optional[float] = None
-    generated_at: str
+    new_this_week: int
+    new_last_week: int
+    total_open: int
+    pct_of_market: float
+    profile_categories: List[str]
+    profile_sectors: List[str]
 
 
-# ── Section 2: Radar d'opportunités ──────────────────────────────────────────
-class HeatmapCell(BaseModel):
-    categorie: str
-    region: str
-    count: int
-
-class ClosingSoonItem(BaseModel):
+# ── Block 2: Pipeline d'échéances ────────────────────────────────────────────
+class DeadlinePreviewItem(BaseModel):
     id: int
     titre: str
     organisation: str
     categorie: str
     region: str
-    date_fermeture: str
-    days_remaining: int
+    date_fermeture: Optional[str] = None
+
+class DeadlineBucket(BaseModel):
+    label: str
+    count: int
+    preview: List[DeadlinePreviewItem]
+
+class DeadlinePipeline(BaseModel):
+    buckets: List[DeadlineBucket]
+
+
+# ── Block 3: Radar d'opportunités ────────────────────────────────────────────
+class HeatmapCell(BaseModel):
+    categorie: str
+    region: str
+    count: int
 
 class RadarData(BaseModel):
     categories: List[str]
+    adjacent_categories: List[str]
     regions: List[str]
     cells: List[HeatmapCell]
-    closing_soon: List[ClosingSoonItem]
-    generated_at: str
 
 
-# ── Section 3: Intelligence acheteurs ────────────────────────────────────────
+# ── Block 4: Intelligence acheteurs (profil + signaux compétitifs) ──────────
 class OrgCategoryBreakdown(BaseModel):
     categorie: str
     count: int
 
-class TopOrganization(BaseModel):
+class BuyerOrganization(BaseModel):
     organisation: str
-    count: int
-    top_categories: List[OrgCategoryBreakdown]
-
-class CategoryDelay(BaseModel):
-    categorie: str
-    avg_days: float
-    sample_size: int
-
-class MonthlyTrendPoint(BaseModel):
-    month: str
-    counts_by_nature: dict[str, int]
-    total: int
-
-class BuyerIntelligence(BaseModel):
-    top_organizations: List[TopOrganization]
-    delay_by_category: List[CategoryDelay]
-    monthly_trend: List[MonthlyTrendPoint]
-    natures: List[str]
-    generated_at: str
-
-
-# ── Section 4: Signaux compétitifs ───────────────────────────────────────────
-class OrgCompetitionSignal(BaseModel):
-    organisation: str
-    total: int
+    open_count: int
+    categories: List[OrgCategoryBreakdown]
     pressenti_count: int
     pressenti_pct: float
-    limited_competition: bool
 
-class TypeAvisBreakdown(BaseModel):
-    type_avis: str
-    count: int
+class BuyerIntelligence(BaseModel):
+    organizations: List[BuyerOrganization]
 
-class CompetitiveSignals(BaseModel):
-    organizations: List[OrgCompetitionSignal]
-    type_avis_breakdown: List[TypeAvisBreakdown]
-    generated_at: str
+
+# ── Block 5: Fenêtre de réaction ─────────────────────────────────────────────
+class ReactionCategory(BaseModel):
+    categorie: str
+    median_days: float
+    sample_size: int
+
+class ReactionWindow(BaseModel):
+    categories: List[ReactionCategory]
+    market_median_days: Optional[float] = None
+
+
+# ── Block 6: Tendance ─────────────────────────────────────────────────────────
+class TrendWeek(BaseModel):
+    weeks_ago: int
+    profile_count: int
+    market_count: int
+
+class Trend(BaseModel):
+    weeks: List[TrendWeek]

@@ -21,7 +21,7 @@ from app.schemas.contract import (
     ContractFilter, ContractFilterResponse, ContractResponse, ContractSortField, SortOrder,
     RecommendedContract, RecommendedContractsResponse, ScoreBreakdown,
     ContractFeedbackResponse, FeedbackAction, SavedContract, SavedContractsResponse,
-    ExplorerContract, ExplorerContractsResponse, ExplorerFacets, ExplorerSort,
+    ExplorerContract, ExplorerContractsResponse, ExplorerFacets, ExplorerSort, ExplorerMatchMode,
     FacetOption, OrganisationSuggestion,
 )
 
@@ -130,10 +130,22 @@ def get_saved_contracts(username: str, skip: int, limit: int, db: Session) -> Sa
 def search_explorer_contracts(
     filters: dict, q: Optional[str], closing_within: Optional[int],
     sort: ExplorerSort, cursor: Optional[str], limit: int, db: Session,
+    match: Optional[ExplorerMatchMode] = None, username: Optional[str] = None,
 ) -> ExplorerContractsResponse:
-    total = get_explorer_count(filters, q, closing_within, db)
-    contract_rows, next_cursor = get_explorer_page(filters, q, closing_within, sort.value, cursor, limit, db)
-    facets_raw = get_explorer_facets(filters, q, closing_within, db)
+    profile = None
+    if match == ExplorerMatchMode.profil:
+        # Router already 401s if match=profil is requested with no
+        # authenticated caller — username is guaranteed non-None here.
+        user = get_user(username, db)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        profile = business_profile(user.business_id, db)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="Business profile not found")
+
+    total = get_explorer_count(filters, q, closing_within, db, profile)
+    contract_rows, next_cursor = get_explorer_page(filters, q, closing_within, sort.value, cursor, limit, db, profile)
+    facets_raw = get_explorer_facets(filters, q, closing_within, db, profile)
 
     contracts = [ExplorerContract.model_validate(c) for c in contract_rows]
     facets = ExplorerFacets(

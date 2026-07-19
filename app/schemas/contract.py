@@ -202,6 +202,13 @@ class ExplorerSort(str, Enum):
     pertinence = "pertinence"              # ts_rank desc — only meaningful with q; falls back otherwise
 
 
+class ExplorerMatchMode(str, Enum):
+    # Applies compatible_contracts_query(profile) server-side — the same
+    # sector-OR-expertise test /recommended and the Analytics blocks qualify
+    # on — instead of the frontend approximating it as a categorie= list.
+    profil = "profil"
+
+
 # Same rationale as RecommendedContract: only the columns the card renders,
 # so load_only() on the listing query isn't immediately undone by a schema
 # that force-loads the rest through lazy attribute access.

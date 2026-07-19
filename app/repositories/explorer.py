@@ -4,11 +4,12 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import select, func, and_, tuple_, true, cast, Float
+from sqlalchemy import select, func, or_, and_, tuple_, true, cast, Float
 from sqlalchemy.orm import Session, load_only
 
 from app.models.contract import Contract
-from app.repositories.contract import _not_expired, _LISTING_COLUMNS
+from app.models.profile import BusinessProfile
+from app.repositories.contract import _not_expired, _LISTING_COLUMNS, compatible_contracts_query
 
 # ── Search ────────────────────────────────────────────────────────────────────
 # french_unaccent (see ensure_search_support() in app/database.py) so a query
@@ -46,27 +47,60 @@ def _closing_within(days: Optional[int]):
 _SIMPLE_FILTER_COLUMNS = {
     "statut": Contract.statut,
     "nature_contrat": Contract.nature_contrat,
-    "categorie": Contract.categorie,
+    "categorie": Contract.categorie,  # facets group on the raw column; _dimension_predicate below intercepts "categorie" before this dict is used for filtering
     "organisation": Contract.organisation,
 }
+
+# categorie in the URL/query param can be either the full label as stored on
+# Contract.categorie ("G17 - Ameublement" — what every existing link/filter
+# has always sent, and what the Explorateur's own checkbox facets still use)
+# or a bare code ("G17" — shorter, stable link format used by newer callers
+# like the Analytics radar). A code never contains a space; every full label
+# does (at minimum around the " - " separator), so that's a safe, cheap way
+# to tell the two apart without a separate "is this a code" flag anywhere in
+# the request. Existing callers that only ever sent full labels are
+# unaffected — they hit the exact-match branch exactly as before.
+def _escape_like(value: str) -> str:
+    return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+def _categorie_predicate(values: Optional[List[str]]):
+    if not values:
+        return None
+    exact_labels = [v for v in values if " " in v]
+    codes = [v for v in values if " " not in v]
+    conditions = []
+    if exact_labels:
+        conditions.append(Contract.categorie.in_(exact_labels))
+    if codes:
+        conditions.append(or_(*(
+            Contract.categorie.like(f"{_escape_like(code)} - %", escape='\\') for code in codes
+        )))
+    return conditions[0] if len(conditions) == 1 else or_(*conditions)
 
 def _dimension_predicate(dimension: str, values: Optional[List[str]]):
     if not values:
         return None
     if dimension == "region":
         return _region_match(values)
+    if dimension == "categorie":
+        return _categorie_predicate(values)
     return _SIMPLE_FILTER_COLUMNS[dimension].in_(values)
 
 # Shared WHERE clauses: open contracts only (this page is scoped to "avis
 # ouverts", so the threshold applies regardless of which statut is picked —
-# see the note in get_explorer_page below) + search + closing-within + every
-# filter dimension except `exclude`. Facet counts for a dimension use
-# exclude=that dimension so picking "Montréal" doesn't itself zero out every
-# other region's count.
+# see the note in get_explorer_page below) + search + closing-within +
+# profile compatibility (only when `profile` is passed — see match=profil in
+# app/routers/contract.py; None here reproduces the exact pre-match=profil
+# behavior) + every filter dimension except `exclude`. Facet counts for a
+# dimension use exclude=that dimension so picking "Montréal" doesn't itself
+# zero out every other region's count.
 def _base_predicates(
-    filters: Dict[str, List[str]], q: Optional[str], closing_within: Optional[int], exclude: Optional[str] = None,
+    filters: Dict[str, List[str]], q: Optional[str], closing_within: Optional[int],
+    profile: Optional[BusinessProfile] = None, exclude: Optional[str] = None,
 ):
     predicates = [_not_expired()]
+    if profile is not None:
+        predicates.append(compatible_contracts_query(profile))
     search_pred = _search_predicate(q)
     if search_pred is not None:
         predicates.append(search_pred)
@@ -81,8 +115,11 @@ def _base_predicates(
             predicates.append(pred)
     return predicates
 
-def get_explorer_count(filters: Dict[str, List[str]], q: Optional[str], closing_within: Optional[int], db: Session) -> int:
-    query = select(func.count()).select_from(Contract).where(*_base_predicates(filters, q, closing_within))
+def get_explorer_count(
+    filters: Dict[str, List[str]], q: Optional[str], closing_within: Optional[int], db: Session,
+    profile: Optional[BusinessProfile] = None,
+) -> int:
+    query = select(func.count()).select_from(Contract).where(*_base_predicates(filters, q, closing_within, profile))
     return db.execute(query).scalar() or 0
 
 # One small GROUP BY per dimension — 4 bounded aggregate queries per page
@@ -91,8 +128,9 @@ def get_explorer_count(filters: Dict[str, List[str]], q: Optional[str], closing_
 # to every region it covers, matching _region_match's membership semantics.
 def _facet_counts(
     filters: Dict[str, List[str]], q: Optional[str], closing_within: Optional[int], db: Session, dimension: str,
+    profile: Optional[BusinessProfile] = None,
 ) -> List[Tuple[str, int]]:
-    predicates = _base_predicates(filters, q, closing_within, exclude=dimension)
+    predicates = _base_predicates(filters, q, closing_within, profile, exclude=dimension)
     if dimension == "region":
         parts = func.unnest(func.string_to_array(Contract.region, ';')).table_valued('val').render_derived()
         value_col = func.trim(parts.c.val)
@@ -121,9 +159,10 @@ def _facet_counts(
 
 def get_explorer_facets(
     filters: Dict[str, List[str]], q: Optional[str], closing_within: Optional[int], db: Session,
+    profile: Optional[BusinessProfile] = None,
 ) -> Dict[str, List[Tuple[str, int]]]:
     return {
-        dimension: _facet_counts(filters, q, closing_within, db, dimension)
+        dimension: _facet_counts(filters, q, closing_within, db, dimension, profile)
         for dimension in ("statut", "region", "nature_contrat", "categorie")
     }
 
@@ -191,6 +230,7 @@ def _decode_cursor(cursor: str, expected_sort: str) -> Optional[Tuple[object, in
 def get_explorer_page(
     filters: Dict[str, List[str]], q: Optional[str], closing_within: Optional[int],
     sort: str, cursor: Optional[str], limit: int, db: Session,
+    profile: Optional[BusinessProfile] = None,
 ) -> Tuple[List[Contract], Optional[str]]:
     if sort == "pertinence" and not q:
         sort = "date_fermeture"
@@ -202,7 +242,7 @@ def get_explorer_page(
     query = (
         select(Contract, sort_key_label)
         .options(load_only(*_LISTING_COLUMNS))
-        .where(*_base_predicates(filters, q, closing_within))
+        .where(*_base_predicates(filters, q, closing_within, profile))
         .order_by(sort_key, Contract.id)
         .limit(limit)
     )

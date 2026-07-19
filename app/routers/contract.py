@@ -6,11 +6,11 @@ from enum import Enum
 from typing import Optional
 from app.limiter import limiter
 from app.database import get_db
-from app.services.token import get_current_user
+from app.services.token import get_current_user, get_current_user_optional
 from app.schemas.contract import (
     ContractFilter, ContractFilterResponse, ContractResponse, ContractSortField, SortOrder,
     RecommendedContractsResponse, ContractFeedbackRequest, ContractFeedbackResponse, SavedContractsResponse,
-    ExplorerContractsResponse, ExplorerSort, OrganisationSuggestion,
+    ExplorerContractsResponse, ExplorerSort, ExplorerMatchMode, OrganisationSuggestion,
 )
 from app.services.contract import (
     get_contracts, get_contract, get_recommended_contracts,
@@ -57,14 +57,22 @@ def search_contracts(request: Request,
                      organisation: Optional[List[str]] = Query(default=None),
                      closing_within: Optional[int] = Query(default=None, ge=1, le=365),
                      sort: ExplorerSort = Query(ExplorerSort.date_fermeture),
+                     match: Optional[ExplorerMatchMode] = Query(default=None),
                      cursor: Optional[str] = Query(default=None),
                      limit: int = Query(20, ge=1, le=100),
+                     username: Optional[str] = Depends(get_current_user_optional),
                      db: Session = Depends(get_db)):
+    # match is None by default (the param didn't exist before this change),
+    # so every existing caller — the Explorateur's own UI, any bookmarked
+    # link — hits exactly the pre-existing, profile-agnostic code path below
+    # with zero behavior change. Only match=profil requires a caller identity.
+    if match == ExplorerMatchMode.profil and username is None:
+        raise HTTPException(status_code=401, detail="Authentication required for match=profil")
     filters = {
         "statut": statut, "region": region, "nature_contrat": nature_contrat,
         "categorie": categorie, "organisation": organisation,
     }
-    return search_explorer_contracts(filters, q, closing_within, sort, cursor, limit, db)
+    return search_explorer_contracts(filters, q, closing_within, sort, cursor, limit, db, match, username)
 
 @router.get('/organisations', response_model=List[OrganisationSuggestion])
 @limiter.limit("100/minute")

@@ -62,3 +62,18 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> str:
     return verify_token(token, db)
+
+# auto_error=False: no Authorization header just resolves to token=None
+# instead of FastAPI raising 401 before the endpoint even runs — for routes
+# that are public by default but need to know "who is this" when a specific
+# opt-in param is present (e.g. GET /contract/search?match=profil, which
+# only needs a caller identity when that param is used).
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme_optional), db: Session = Depends(get_db)) -> Optional[str]:
+    if not token:
+        return None
+    try:
+        return verify_token(token, db)
+    except HTTPException:
+        return None

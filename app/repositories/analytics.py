@@ -1,352 +1,360 @@
-import threading
-import time
-from collections import defaultdict
-from datetime import datetime, timezone
-from functools import lru_cache
+from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import text
+from sqlalchemy import select, func, case, and_, desc, asc, true
+from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
+from app.models.contract import Contract
+from app.models.profile import BusinessProfile
+from app.repositories.contract import _match_expressions, _not_expired, compatible_contracts_query
 
-# Data only changes on the daily SEAO sync, so a 20 min TTL keeps every
-# dashboard load fast (no aggregation query on the hot path) while staying
-# fresh enough within a workday. lru_cache has no time-based eviction, so the
-# cache key includes a "bucket" - the current time divided into TTL-sized
-# windows - which changes (forcing a recompute) once per window.
-CACHE_TTL_SECONDS = 20 * 60
+# This whole module answers "where are MY opportunities", not "what does the
+# market look like" — every query below starts from compatible_contracts_query
+# (app/repositories/contract.py — the same sector-OR-expertise qualification
+# /recommended and the Explorateur's match=profil filter use) rather than the
+# unfiltered contracts table. Sharing that one function instead of each
+# caller re-deriving "is this compatible" is what keeps these counts and the
+# Explorateur's counts from silently drifting apart — see
+# tests/test_profile_compatibility_consistency.py. The old global-market
+# version of this module cached results process-wide on a 20 min TTL (see
+# git history); that cache can't survive going per-profile (every
+# business_id would need its own cache slot), and at 889 rows a fresh
+# aggregation is cheap enough that the cache wasn't buying much anyway, so
+# it's dropped here.
 
-def _bucket() -> int:
-    return int(time.time() // CACHE_TTL_SECONDS)
+def profile_is_usable(profile: BusinessProfile) -> bool:
+    """A profile with neither a sector nor an expertise entry can never
+    satisfy core_match (sector OR expertise) — every block below would
+    silently return "0 results" instead of surfacing *why*."""
+    return bool(profile.sector) or bool(profile.expertise)
 
-# lru_cache alone lets N concurrent requests all miss at once and all recompute
-# in parallel right as a bucket rolls over - a thundering herd against a pool
-# with only 10 connections. One lock per cached function serializes recompute
-# so only the first caller in a window pays for it; the rest wait and then hit
-# the now-populated cache.
-_locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
+def _open_predicate():
+    return and_(Contract.statut != 'Annulé', _not_expired())
 
-def _cached(key: str, fn):
-    with _locks[key]:
-        return fn(_bucket())
+def _fermeture_ts():
+    return func.safe_timestamptz(Contract.date_fermeture)
+
+def _publication_ts():
+    return func.safe_timestamptz(Contract.date_publication)
+
+def _days_remaining():
+    return func.extract('epoch', _fermeture_ts() - func.now()) / 86400.0
+
+def _pressenti_predicate():
+    return and_(Contract.fournisseur_pressenti.is_not(None), Contract.fournisseur_pressenti != '')
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+# ── Block 1: KPIs "Votre marché" ─────────────────────────────────────────────
+def get_profile_kpis(profile: BusinessProfile, db: Session) -> dict:
+    profile_categories = list(dict.fromkeys(profile.expertise or []))
+    profile_sectors = list(dict.fromkeys(profile.sector or []))
 
+    if not profile_is_usable(profile):
+        return {"profile_ready": False, "compatible_open": 0, "closing_7d": 0,
+                "new_this_week": 0, "new_last_week": 0, "total_open": 0, "pct_of_market": 0.0,
+                "profile_categories": profile_categories, "profile_sectors": profile_sectors}
 
-# ── Section 1: Le pouls du marché ────────────────────────────────────────────
+    compat = compatible_contracts_query(profile)
+    fermeture_ts = _fermeture_ts()
+    publication_ts = _publication_ts()
+    days_remaining = _days_remaining()
+    days_since_pub = func.extract('epoch', func.now() - publication_ts) / 86400.0
 
-_PULSE_SQL = text("""
-    WITH base AS (
-        SELECT
-            safe_timestamptz(date_fermeture)   AS fermeture_ts,
-            safe_timestamptz(date_publication) AS publication_ts,
-            statut
-        FROM contracts
+    query = (
+        select(
+            func.count().filter(compat).label('compatible_open'),
+            func.count().filter(compat, fermeture_ts.is_not(None), days_remaining <= 7).label('closing_7d'),
+            func.count().filter(compat, publication_ts.is_not(None), days_since_pub >= 0, days_since_pub <= 7).label('new_this_week'),
+            func.count().filter(compat, publication_ts.is_not(None), days_since_pub > 7, days_since_pub <= 14).label('new_last_week'),
+            func.count().label('total_open'),
+        )
+        .where(_open_predicate())
     )
-    SELECT
-        COUNT(*) FILTER (
-            WHERE fermeture_ts IS NOT NULL AND fermeture_ts > now() AND statut <> 'Annulé'
-        ) AS open_now,
-        COUNT(*) FILTER (
-            WHERE fermeture_ts IS NOT NULL AND fermeture_ts > now()
-                AND fermeture_ts <= now() + interval '7 days' AND statut <> 'Annulé'
-        ) AS closing_7d,
-        COUNT(*) FILTER (
-            WHERE publication_ts IS NOT NULL
-                AND publication_ts > now() - interval '7 days' AND publication_ts <= now()
-        ) AS published_this_week,
-        COUNT(*) FILTER (
-            WHERE publication_ts IS NOT NULL
-                AND publication_ts > now() - interval '14 days' AND publication_ts <= now() - interval '7 days'
-        ) AS published_last_week,
-        percentile_cont(0.5) WITHIN GROUP (
-            ORDER BY EXTRACT(EPOCH FROM (fermeture_ts - publication_ts)) / 86400.0
-        ) FILTER (
-            WHERE fermeture_ts IS NOT NULL AND publication_ts IS NOT NULL
-                AND fermeture_ts > publication_ts AND publication_ts > now() - interval '12 months'
-        ) AS median_days_to_close
-    FROM base
-""")
-
-def _compute_pulse(cache_bucket: int) -> dict:
-    with SessionLocal() as db:
-        row = db.execute(_PULSE_SQL).mappings().one()
-    this_week = row["published_this_week"] or 0
-    last_week = row["published_last_week"] or 0
-    wow_pct = ((this_week - last_week) / last_week * 100.0) if last_week else None
-    return {
-        "open_now": row["open_now"] or 0,
-        "closing_7d": row["closing_7d"] or 0,
-        "published_this_week": this_week,
-        "published_last_week": last_week,
-        "published_wow_pct": round(wow_pct, 1) if wow_pct is not None else None,
-        "median_days_to_close": round(row["median_days_to_close"], 1) if row["median_days_to_close"] is not None else None,
-        "generated_at": _now_iso(),
-    }
-
-_compute_pulse_cached = lru_cache(maxsize=2)(_compute_pulse)
-
-def get_pulse_stats() -> dict:
-    return _cached("pulse", _compute_pulse_cached)
-
-
-# ── Section 2: Radar d'opportunités ──────────────────────────────────────────
-# "Open" = date_fermeture parses, the deadline instant is still ahead of now(),
-# and the notice hasn't been cancelled. Reused identically across the heatmap
-# and the closing-soon table so both agree on what "open" means. Comparing
-# absolute instants (no AT TIME ZONE) is both correct - a deadline is a fixed
-# point in time regardless of timezone - and lets Postgres use the functional
-# index on safe_timestamptz(date_fermeture) directly.
-
-_TOP_CATEGORIES_SQL = text("""
-    WITH open_contracts AS (
-        SELECT categorie, region
-        FROM (
-            SELECT categorie, region, statut,
-                   safe_timestamptz(date_fermeture) AS fermeture_ts
-            FROM contracts
-            WHERE date_fermeture IS NOT NULL AND date_fermeture <> ''
-        ) s
-        WHERE fermeture_ts IS NOT NULL AND fermeture_ts > now()
-            AND statut <> 'Annulé'
-    ),
-    top_cats AS (
-        SELECT categorie FROM open_contracts GROUP BY categorie ORDER BY COUNT(*) DESC LIMIT 10
-    )
-    SELECT oc.categorie, oc.region, COUNT(*) AS cnt
-    FROM open_contracts oc
-    WHERE oc.categorie IN (SELECT categorie FROM top_cats)
-    GROUP BY oc.categorie, oc.region
-    ORDER BY oc.categorie, oc.region
-""")
-
-_CLOSING_SOON_SQL = text("""
-    SELECT id, titre, organisation, categorie, region, date_fermeture,
-           CEIL(EXTRACT(EPOCH FROM (fermeture_ts - now())) / 86400.0)::int AS days_remaining
-    FROM (
-        SELECT id, titre, organisation, categorie, region, date_fermeture, statut,
-               safe_timestamptz(date_fermeture) AS fermeture_ts
-        FROM contracts
-        WHERE date_fermeture IS NOT NULL AND date_fermeture <> ''
-    ) s
-    WHERE fermeture_ts IS NOT NULL AND fermeture_ts > now()
-        AND statut <> 'Annulé'
-    ORDER BY fermeture_ts ASC
-    LIMIT 10
-""")
-
-def _compute_radar(cache_bucket: int) -> dict:
-    with SessionLocal() as db:
-        cell_rows = db.execute(_TOP_CATEGORIES_SQL).mappings().all()
-        closing_rows = db.execute(_CLOSING_SOON_SQL).mappings().all()
-
-    categories = list(dict.fromkeys(r["categorie"] for r in cell_rows))
-    regions = sorted(set(r["region"] for r in cell_rows if r["region"]))
-    cells = [{"categorie": r["categorie"], "region": r["region"], "count": r["cnt"]} for r in cell_rows if r["region"]]
-    closing_soon = [
-        {
-            "id": r["id"], "titre": r["titre"], "organisation": r["organisation"],
-            "categorie": r["categorie"], "region": r["region"],
-            "date_fermeture": r["date_fermeture"], "days_remaining": r["days_remaining"],
-        }
-        for r in closing_rows
-    ]
-    return {
-        "categories": categories, "regions": regions, "cells": cells,
-        "closing_soon": closing_soon, "generated_at": _now_iso(),
-    }
-
-_compute_radar_cached = lru_cache(maxsize=2)(_compute_radar)
-
-def get_radar_data() -> dict:
-    return _cached("radar", _compute_radar_cached)
-
-
-# ── Section 3: Intelligence acheteurs ────────────────────────────────────────
-
-_TOP_ORGS_SQL = text("""
-    WITH recent AS (
-        SELECT organisation, categorie
-        FROM (
-            SELECT organisation, categorie,
-                   safe_timestamptz(date_publication) AS publication_ts
-            FROM contracts
-            WHERE date_publication IS NOT NULL AND date_publication <> ''
-        ) s
-        WHERE publication_ts IS NOT NULL
-            AND publication_ts > now() - interval '12 months'
-    ),
-    top_orgs AS (
-        SELECT organisation, COUNT(*) AS cnt FROM recent GROUP BY organisation ORDER BY cnt DESC LIMIT 10
-    ),
-    org_cat AS (
-        SELECT r.organisation, r.categorie, COUNT(*) AS cnt,
-               ROW_NUMBER() OVER (PARTITION BY r.organisation ORDER BY COUNT(*) DESC) AS rn
-        FROM recent r
-        WHERE r.organisation IN (SELECT organisation FROM top_orgs)
-        GROUP BY r.organisation, r.categorie
-    )
-    SELECT t.organisation, t.cnt AS total, oc.categorie, oc.cnt AS cat_count
-    FROM top_orgs t
-    LEFT JOIN org_cat oc ON oc.organisation = t.organisation AND oc.rn <= 3
-    ORDER BY t.cnt DESC, oc.cnt DESC NULLS LAST
-""")
-
-_DELAY_BY_CATEGORY_SQL = text("""
-    WITH scored AS (
-        SELECT categorie,
-               safe_timestamptz(date_fermeture)   AS fermeture_ts,
-               safe_timestamptz(date_publication) AS publication_ts
-        FROM contracts
-        WHERE date_fermeture IS NOT NULL AND date_fermeture <> ''
-            AND date_publication IS NOT NULL AND date_publication <> ''
-    )
-    SELECT categorie,
-           AVG(EXTRACT(EPOCH FROM (fermeture_ts - publication_ts)) / 86400.0) AS avg_days,
-           COUNT(*) AS n
-    FROM scored
-    WHERE fermeture_ts IS NOT NULL AND publication_ts IS NOT NULL AND fermeture_ts > publication_ts
-        AND publication_ts > now() - interval '12 months'
-    GROUP BY categorie
-    HAVING COUNT(*) >= 5
-    ORDER BY avg_days ASC
-""")
-
-_MONTHLY_TREND_SQL = text("""
-    WITH months AS (
-        SELECT generate_series(
-            date_trunc('month', (now() AT TIME ZONE 'America/Montreal') - interval '11 months'),
-            date_trunc('month', (now() AT TIME ZONE 'America/Montreal')),
-            interval '1 month'
-        ) AS month_start
-    ),
-    natures AS (SELECT DISTINCT nature_contrat FROM contracts WHERE nature_contrat IS NOT NULL AND nature_contrat <> ''),
-    grid AS (SELECT month_start, nature_contrat FROM months CROSS JOIN natures),
-    pub AS (
-        SELECT date_trunc('month', publication_mtl) AS month_start, nature_contrat
-        FROM (
-            SELECT nature_contrat,
-                   safe_timestamptz(date_publication) AT TIME ZONE 'America/Montreal' AS publication_mtl
-            FROM contracts
-            WHERE date_publication IS NOT NULL AND date_publication <> ''
-        ) s
-        WHERE publication_mtl IS NOT NULL
-    ),
-    counted AS (
-        SELECT month_start, nature_contrat, COUNT(*) AS cnt FROM pub GROUP BY month_start, nature_contrat
-    )
-    SELECT g.month_start, g.nature_contrat, COALESCE(c.cnt, 0) AS cnt
-    FROM grid g
-    LEFT JOIN counted c ON c.month_start = g.month_start AND c.nature_contrat = g.nature_contrat
-    ORDER BY g.month_start, g.nature_contrat
-""")
-
-def _compute_buyers(cache_bucket: int) -> dict:
-    with SessionLocal() as db:
-        org_rows = db.execute(_TOP_ORGS_SQL).mappings().all()
-        delay_rows = db.execute(_DELAY_BY_CATEGORY_SQL).mappings().all()
-        trend_rows = db.execute(_MONTHLY_TREND_SQL).mappings().all()
-
-    orgs: dict[str, dict] = {}
-    for r in org_rows:
-        org = orgs.setdefault(r["organisation"], {"organisation": r["organisation"], "count": r["total"], "top_categories": []})
-        if r["categorie"] is not None:
-            org["top_categories"].append({"categorie": r["categorie"], "count": r["cat_count"]})
-    top_organizations = list(orgs.values())
-
-    delay_by_category = [
-        {"categorie": r["categorie"], "avg_days": round(r["avg_days"], 1), "sample_size": r["n"]}
-        for r in delay_rows
-    ]
-
-    natures = sorted(set(r["nature_contrat"] for r in trend_rows))
-    months: dict[str, dict] = {}
-    for r in trend_rows:
-        month_key = r["month_start"].strftime("%Y-%m")
-        bucket = months.setdefault(month_key, {n: 0 for n in natures})
-        bucket[r["nature_contrat"]] = r["cnt"]
-    monthly_trend = [
-        {"month": m, "counts_by_nature": counts, "total": sum(counts.values())}
-        for m, counts in sorted(months.items())
-    ]
+    row = db.execute(query).one()
+    compatible_open = row.compatible_open or 0
+    total_open = row.total_open or 0
+    pct_of_market = (compatible_open / total_open * 100.0) if total_open else 0.0
 
     return {
-        "top_organizations": top_organizations,
-        "delay_by_category": delay_by_category,
-        "monthly_trend": monthly_trend,
-        "natures": natures,
-        "generated_at": _now_iso(),
+        "profile_ready": compatible_open > 0,
+        "compatible_open": compatible_open,
+        "closing_7d": row.closing_7d or 0,
+        "new_this_week": row.new_this_week or 0,
+        "new_last_week": row.new_last_week or 0,
+        "total_open": total_open,
+        "pct_of_market": round(pct_of_market, 1),
+        "profile_categories": profile_categories,
+        "profile_sectors": profile_sectors,
     }
 
-_compute_buyers_cached = lru_cache(maxsize=2)(_compute_buyers)
 
-def get_buyer_intelligence() -> dict:
-    return _cached("buyers", _compute_buyers_cached)
+# ── Block 2: Pipeline d'échéances ────────────────────────────────────────────
+DEADLINE_BUCKETS = ["0-7", "8-14", "15-30", "30+"]
+_PREVIEW_COLUMNS = (Contract.id, Contract.titre, Contract.organisation, Contract.categorie,
+                     Contract.region, Contract.date_fermeture)
+
+def _deadline_bucket_expr():
+    fermeture_ts = _fermeture_ts()
+    days_remaining = _days_remaining()
+    return case(
+        (fermeture_ts.is_(None), "30+"),
+        (days_remaining <= 7, "0-7"),
+        (days_remaining <= 14, "8-14"),
+        (days_remaining <= 30, "15-30"),
+        else_="30+",
+    )
+
+def get_deadline_pipeline(profile: BusinessProfile, db: Session) -> dict:
+    if not profile_is_usable(profile):
+        return {"buckets": [{"label": b, "count": 0, "preview": []} for b in DEADLINE_BUCKETS]}
+
+    compat = compatible_contracts_query(profile)
+    _, base_score, *_rest = _match_expressions(profile)  # base_score is still scoring, not qualification
+    bucket = _deadline_bucket_expr()
+    fermeture_ts = _fermeture_ts()
+
+    counts_query = (
+        select(bucket.label('bucket'), func.count().label('n'))
+        .where(_open_predicate(), compat)
+        .group_by(bucket)
+    )
+    counts = {b: 0 for b in DEADLINE_BUCKETS}
+    for row in db.execute(counts_query):
+        counts[row.bucket] = row.n
+
+    # Ranked by the same additive score /recommended uses, so "most relevant"
+    # means the same thing everywhere in the app — not a second definition
+    # of relevance invented just for this preview.
+    ranked = (
+        select(
+            *_PREVIEW_COLUMNS,
+            bucket.label('bucket'),
+            func.row_number().over(
+                partition_by=bucket, order_by=[desc(base_score), asc(fermeture_ts)],
+            ).label('rn'),
+        )
+        .where(_open_predicate(), compat)
+        .subquery()
+    )
+    previews_query = select(ranked).where(ranked.c.rn <= 3).order_by(ranked.c.bucket, ranked.c.rn)
+    previews_by_bucket: Dict[str, List[dict]] = {b: [] for b in DEADLINE_BUCKETS}
+    for row in db.execute(previews_query):
+        previews_by_bucket[row.bucket].append({
+            "id": row.id, "titre": row.titre, "organisation": row.organisation,
+            "categorie": row.categorie, "region": row.region, "date_fermeture": row.date_fermeture,
+        })
+
+    return {
+        "buckets": [
+            {"label": b, "count": counts[b], "preview": previews_by_bucket[b]}
+            for b in DEADLINE_BUCKETS
+        ],
+    }
 
 
-# ── Section 4: Signaux compétitifs ───────────────────────────────────────────
-# A notice naming a "fournisseur pressenti" signals the buyer already has a
-# preferred supplier lined up (quasi sole-source) rather than running an open
-# competition. A high share of an organisation's notices doing this is a
-# useful "read the room before you bid" signal.
-LIMITED_COMPETITION_THRESHOLD = 0.3
+# ── Block 3: Radar d'opportunités ────────────────────────────────────────────
+# BUG FIX vs the old global version: region is ';'-joined free text on ~9% of
+# rows (province-wide notices listing every region) — grouping on the raw
+# column produced ~40 "columns" (one per unique combination) instead of ~17
+# (one per actual region). Split via unnest before aggregating, same pattern
+# already used in app/repositories/explorer.py's region facet/filter.
+RADAR_ADJACENT_LIMIT = 5
 
-_PRESSENTI_SQL = text("""
-    SELECT organisation,
-           COUNT(*) AS total,
-           COUNT(*) FILTER (WHERE fournisseur_pressenti IS NOT NULL AND fournisseur_pressenti <> '') AS pressenti_count
-    FROM (
-        SELECT organisation, fournisseur_pressenti,
-               safe_timestamptz(date_publication) AS publication_ts
-        FROM contracts
-        WHERE date_publication IS NOT NULL AND date_publication <> ''
-    ) s
-    WHERE publication_ts IS NOT NULL
-        AND publication_ts > now() - interval '12 months'
-    GROUP BY organisation
-    HAVING COUNT(*) >= 5
-    ORDER BY (COUNT(*) FILTER (WHERE fournisseur_pressenti IS NOT NULL AND fournisseur_pressenti <> ''))::float / COUNT(*) DESC
-    LIMIT 15
-""")
+def _radar_row_categories(profile: BusinessProfile, db: Session) -> Tuple[List[str], List[str]]:
+    profile_categories = list(dict.fromkeys(profile.expertise or []))
+    if not profile_categories:
+        return [], []
 
-_TYPE_AVIS_SQL = text("""
-    SELECT type_avis, COUNT(*) AS cnt
-    FROM (
-        SELECT type_avis,
-               safe_timestamptz(date_publication) AS publication_ts
-        FROM contracts
-        WHERE date_publication IS NOT NULL AND date_publication <> ''
-    ) s
-    WHERE publication_ts IS NOT NULL
-        AND publication_ts > now() - interval '12 months'
-    GROUP BY type_avis
-    ORDER BY cnt DESC
-""")
+    # "Opportunités voisines": categories frequently co-published by the same
+    # organisations that publish the profile's own categories — a proxy for
+    # "buyers who already buy from you also buy this", not a global top-N.
+    orgs_subq = (
+        select(Contract.organisation)
+        .where(_open_predicate(), Contract.categorie.in_(profile_categories))
+        .distinct()
+    )
+    adjacent_query = (
+        select(Contract.categorie, func.count().label('n'))
+        .where(
+            _open_predicate(),
+            Contract.organisation.in_(orgs_subq),
+            Contract.categorie.notin_(profile_categories),
+        )
+        .group_by(Contract.categorie)
+        .order_by(func.count().desc())
+        .limit(RADAR_ADJACENT_LIMIT)
+    )
+    adjacent = [row.categorie for row in db.execute(adjacent_query)]
+    return profile_categories, adjacent
 
-def _compute_signals(cache_bucket: int) -> dict:
-    with SessionLocal() as db:
-        org_rows = db.execute(_PRESSENTI_SQL).mappings().all()
-        type_rows = db.execute(_TYPE_AVIS_SQL).mappings().all()
+def get_radar_data(profile: BusinessProfile, db: Session) -> dict:
+    profile_categories, adjacent_categories = _radar_row_categories(profile, db)
+    row_categories = profile_categories + adjacent_categories
+    if not row_categories:
+        return {"categories": [], "adjacent_categories": [], "regions": [], "cells": []}
+
+    parts = func.unnest(func.string_to_array(Contract.region, ';')).table_valued('val').render_derived()
+    region_col = func.trim(parts.c.val)
+
+    cell_query = (
+        select(Contract.categorie, region_col.label('region'), func.count().label('n'))
+        .select_from(Contract)
+        .join(parts, true())
+        .where(_open_predicate(), Contract.categorie.in_(row_categories))
+        .group_by(Contract.categorie, region_col)
+    )
+
+    region_totals: Dict[str, int] = {}
+    cells = []
+    for row in db.execute(cell_query):
+        if not row.region:
+            continue
+        cells.append({"categorie": row.categorie, "region": row.region, "count": row.n})
+        region_totals[row.region] = region_totals.get(row.region, 0) + row.n
+    regions = sorted(region_totals.keys(), key=lambda r: -region_totals[r])
+
+    return {
+        "categories": profile_categories,
+        "adjacent_categories": adjacent_categories,
+        "regions": regions,
+        "cells": cells,
+    }
+
+
+# ── Block 4: Intelligence acheteurs (profil) + signaux compétitifs fusionnés ─
+# A "fournisseur pressenti" on a notice signals the buyer already lined up a
+# preferred supplier (quasi sole-source) rather than running an open
+# competition — folded in here as a per-organisation warning badge instead
+# of a separate block, per the merge instruction.
+BUYER_ORG_LIMIT = 12
+BUYER_CATEGORY_LIMIT = 3
+
+def get_buyer_intelligence(profile: BusinessProfile, db: Session) -> dict:
+    if not profile_is_usable(profile):
+        return {"organizations": []}
+
+    compat = compatible_contracts_query(profile)
+
+    org_query = (
+        select(
+            Contract.organisation,
+            func.count().label('open_count'),
+            func.count().filter(_pressenti_predicate()).label('pressenti_count'),
+        )
+        .where(_open_predicate(), compat)
+        .group_by(Contract.organisation)
+        .order_by(func.count().desc())
+        .limit(BUYER_ORG_LIMIT)
+    )
+    org_rows = db.execute(org_query).all()
+    org_names = [r.organisation for r in org_rows]
+    if not org_names:
+        return {"organizations": []}
+
+    grouped = (
+        select(Contract.organisation, Contract.categorie, func.count().label('n'))
+        .where(_open_predicate(), compat, Contract.organisation.in_(org_names))
+        .group_by(Contract.organisation, Contract.categorie)
+        .subquery()
+    )
+    ranked = (
+        select(
+            grouped.c.organisation, grouped.c.categorie, grouped.c.n,
+            func.row_number().over(partition_by=grouped.c.organisation, order_by=grouped.c.n.desc()).label('rn'),
+        )
+        .subquery()
+    )
+    cat_query = (
+        select(ranked.c.organisation, ranked.c.categorie, ranked.c.n)
+        .where(ranked.c.rn <= BUYER_CATEGORY_LIMIT)
+    )
+    categories_by_org: Dict[str, List[dict]] = {name: [] for name in org_names}
+    for row in db.execute(cat_query):
+        categories_by_org[row.organisation].append({"categorie": row.categorie, "count": row.n})
 
     organizations = []
     for r in org_rows:
-        pct = (r["pressenti_count"] / r["total"]) if r["total"] else 0.0
+        pressenti_pct = (r.pressenti_count / r.open_count * 100.0) if r.open_count else 0.0
         organizations.append({
-            "organisation": r["organisation"], "total": r["total"],
-            "pressenti_count": r["pressenti_count"], "pressenti_pct": round(pct * 100, 1),
-            "limited_competition": pct >= LIMITED_COMPETITION_THRESHOLD,
+            "organisation": r.organisation,
+            "open_count": r.open_count,
+            "categories": categories_by_org.get(r.organisation, []),
+            "pressenti_count": r.pressenti_count,
+            "pressenti_pct": round(pressenti_pct, 1),
         })
+    return {"organizations": organizations}
 
-    type_avis_breakdown = [{"type_avis": r["type_avis"], "count": r["cnt"]} for r in type_rows]
+
+# ── Block 5: Fenêtre de réaction ─────────────────────────────────────────────
+REACTION_CATEGORY_CAP = 6
+
+def get_reaction_window(profile: BusinessProfile, db: Session) -> dict:
+    profile_categories = list(dict.fromkeys(profile.expertise or []))[:REACTION_CATEGORY_CAP]
+    if not profile_categories:
+        return {"categories": [], "market_median_days": None}
+
+    fermeture_ts = _fermeture_ts()
+    publication_ts = _publication_ts()
+    days = func.extract('epoch', fermeture_ts - publication_ts) / 86400.0
+    valid = and_(fermeture_ts.is_not(None), publication_ts.is_not(None), fermeture_ts > publication_ts)
+
+    cat_query = (
+        select(
+            Contract.categorie,
+            func.percentile_cont(0.5).within_group(days).label('median_days'),
+            func.count().label('n'),
+        )
+        .where(valid, Contract.categorie.in_(profile_categories))
+        .group_by(Contract.categorie)
+    )
+    cat_rows = [r for r in db.execute(cat_query) if r.median_days is not None]
+    cat_rows.sort(key=lambda r: r.median_days)
+
+    market_median = db.execute(select(func.percentile_cont(0.5).within_group(days)).where(valid)).scalar()
 
     return {
-        "organizations": organizations,
-        "type_avis_breakdown": type_avis_breakdown,
-        "generated_at": _now_iso(),
+        "categories": [
+            {"categorie": r.categorie, "median_days": round(r.median_days, 1), "sample_size": r.n}
+            for r in cat_rows
+        ],
+        "market_median_days": round(market_median, 1) if market_median is not None else None,
     }
 
-_compute_signals_cached = lru_cache(maxsize=2)(_compute_signals)
 
-def get_competitive_signals() -> dict:
-    return _cached("signals", _compute_signals_cached)
+# ── Block 6: Tendance ─────────────────────────────────────────────────────────
+# Only ~1 month of publication history exists in this dataset today, so most
+# of a naive 12-week window would be empty — MIN_SIGNAL_WEEKS below is the
+# "don't show a flat/empty chart" gate from the spec, not a stylistic choice.
+TREND_WEEKS = 12
+MIN_SIGNAL_WEEKS = 3
+
+def get_trend(profile: BusinessProfile, db: Session) -> Optional[dict]:
+    if not profile_is_usable(profile):
+        return None
+
+    compat = compatible_contracts_query(profile)
+    publication_ts = _publication_ts()
+    weeks_ago = func.floor(func.extract('epoch', func.now() - publication_ts) / (7 * 86400.0))
+    in_window = and_(publication_ts.is_not(None), weeks_ago >= 0, weeks_ago < TREND_WEEKS)
+
+    profile_query = (
+        select(weeks_ago.label('w'), func.count().label('n'))
+        .where(in_window, compat)
+        .group_by(weeks_ago)
+    )
+    market_query = (
+        select(weeks_ago.label('w'), func.count().label('n'))
+        .where(in_window)
+        .group_by(weeks_ago)
+    )
+    profile_counts = {int(r.w): r.n for r in db.execute(profile_query)}
+    market_counts = {int(r.w): r.n for r in db.execute(market_query)}
+
+    weeks = [
+        {"weeks_ago": w, "profile_count": profile_counts.get(w, 0), "market_count": market_counts.get(w, 0)}
+        for w in range(TREND_WEEKS - 1, -1, -1)
+    ]
+
+    if sum(1 for wk in weeks if wk["profile_count"] > 0) < MIN_SIGNAL_WEEKS:
+        return None
+
+    return {"weeks": weeks}

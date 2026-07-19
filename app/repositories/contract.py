@@ -2,7 +2,7 @@ import base64
 import json
 from datetime import date, datetime
 from typing import List, Optional, Tuple
-from sqlalchemy import select, func, case, or_, false, tuple_
+from sqlalchemy import select, func, case, or_, and_, false, tuple_
 from sqlalchemy.orm import Session, load_only
 from app.models.contract import Contract
 from app.models.profile import BusinessProfile
@@ -109,6 +109,26 @@ def _match_expressions(profile: BusinessProfile):
         + case((sme_bonus, SCORE_SME_BONUS), else_=0)
     )
     return core_match, base_score, expertise_match, sector_match, region_match, contract_type_match, sme_bonus
+
+# ── Profile compatibility (single source of truth) ────────────────────────────
+# "Is this contract compatible with this business profile" — sector OR
+# expertise, the same qualification core_match already computes above — used
+# to only exist embedded inside _match_expressions (built for scoring), so
+# every other caller that needed a plain yes/no answer (analytics KPIs, the
+# Explorateur, links built by the frontend) re-derived its own approximation.
+# That's exactly how the KPI-vs-Explorateur count mismatch happened: the KPI
+# counted the true sector-OR-expertise set, but the frontend could only
+# encode one arm of that OR as a categorie= link, silently undercounting.
+# Every caller that needs "is this contract compatible with X's profile" —
+# scoring, analytics, or the Explorateur's match=profil filter — should call
+# this instead of re-deriving the condition.
+def compatible_contracts_query(profile: BusinessProfile):
+    core_match, *_ = _match_expressions(profile)
+    # A cancelled notice is never "open" regardless of what its date_fermeture
+    # says (_not_expired() is purely date-based) — bundled in here rather
+    # than duplicated at each call site, since every caller that wants
+    # compatibility also wants to exclude cancelled notices from it.
+    return and_(core_match, Contract.statut != 'Annulé')
 
 def _not_expired():
     today = date.today().isoformat()

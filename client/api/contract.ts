@@ -197,6 +197,7 @@ export interface ExplorerQuery {
   organisation?:    string[];
   closing_within?:  number;
   sort?:            ExplorerSort;
+  match?:           "profil";
   cursor?:          string | null;
   limit?:           number;
 }
@@ -255,7 +256,11 @@ export const contractApi = {
     })
   },
 
-  search_contracts(query: ExplorerQuery): Promise<ExplorerContractsResponse> {
+  // token is only required when query.match is set — the endpoint 401s on
+  // match=profil with no Authorization header, exactly like every other
+  // profile-scoped endpoint in this file. Omit it for a plain search and
+  // the request goes out exactly as it always has (no behavior change).
+  search_contracts(query: ExplorerQuery, token?: string): Promise<ExplorerContractsResponse> {
     const params = new URLSearchParams()
     if (query.q) params.append("q", query.q)
     query.statut?.forEach(v => params.append("statut", v))
@@ -265,9 +270,13 @@ export const contractApi = {
     query.organisation?.forEach(v => params.append("organisation", v))
     if (query.closing_within) params.append("closing_within", String(query.closing_within))
     if (query.sort) params.append("sort", query.sort)
+    if (query.match) params.append("match", query.match)
     if (query.cursor) params.append("cursor", query.cursor)
     params.append("limit", String(query.limit ?? 20))
-    return request<ExplorerContractsResponse>(`/contract/search?${params.toString()}`, { method: "GET" })
+    return request<ExplorerContractsResponse>(`/contract/search?${params.toString()}`, {
+      method: "GET",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
   },
 
   get_organisation_suggestions(q: string, limit = 20): Promise<OrganisationSuggestion[]> {

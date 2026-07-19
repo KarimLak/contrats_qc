@@ -120,7 +120,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* ── Main content ───────────────────────────────────────────── */}
-      <main style={{ marginLeft: 240, flex: 1, minHeight: "100vh", background: "#f7fafa" }}>
+      {/* minWidth: 0 overrides the flex item's default min-width: auto (which
+          sizes to the widest descendant's min-content) — without it, a
+          Recharts ResponsiveContainer inside this flex column measures its
+          parent as width 0 on first layout pass and never recovers, then
+          falls back to an oversized default that pushes the whole page into
+          horizontal scroll. */}
+      <main style={{ marginLeft: 240, flex: 1, minWidth: 0, minHeight: "100vh", background: "#f7fafa" }}>
         {children}
       </main>
     </div>

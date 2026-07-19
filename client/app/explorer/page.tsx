@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import AppLayout from "@/components/AppLayout"
 import { ContractCard } from "@/components/ContractCard"
 import { contractApi, type ExplorerContract, type ExplorerFacets, type ExplorerSort, type OrganisationSuggestion } from "@/api/contract"
+import { getAccessToken } from "@/context/AuthContext"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
@@ -314,6 +315,11 @@ function ExplorerContent() {
   const [natures, setNatures]         = useState<string[]>(() => searchParams.getAll("nature_contrat"))
   const [categories, setCategories]   = useState<string[]>(() => searchParams.getAll("categorie"))
   const [organisations, setOrganisations] = useState<string[]>(() => searchParams.getAll("organisation"))
+  // Arrives via a deep link from Analytics ("avis compatibles avec votre
+  // profil" et al.) — applies compatible_contracts_query(profile) server-
+  // side. No dedicated dropdown for it (it's not a pickable value list like
+  // the others); the dismissible badge in the filter bar is its only UI.
+  const [matchProfil, setMatchProfil] = useState<boolean>(() => searchParams.get("match") === "profil")
 
   const debouncedQ = useDebounced(q, SEARCH_DEBOUNCE_MS)
 
@@ -323,6 +329,7 @@ function ExplorerContent() {
 
   const hasFilters = statuts.length > 0 || regions.length > 0 || natures.length > 0
     || categories.length > 0 || organisations.length > 0 || closingWithin !== null || debouncedQ.length > 0
+    || matchProfil
 
   const buildQuery = useCallback((cursor: string | null) => ({
     q: debouncedQ || undefined,
@@ -333,9 +340,10 @@ function ExplorerContent() {
     organisation: organisations.length ? organisations : undefined,
     closing_within: closingWithin ?? undefined,
     sort,
+    match: matchProfil ? ("profil" as const) : undefined,
     cursor,
     limit: PAGE_SIZE,
-  }), [debouncedQ, statuts, regions, natures, categories, organisations, closingWithin, sort])
+  }), [debouncedQ, statuts, regions, natures, categories, organisations, closingWithin, sort, matchProfil])
 
   // Fresh search: any filter/search/sort change restarts pagination from
   // the top rather than appending.
@@ -344,7 +352,8 @@ function ExplorerContent() {
     setLoading(true)
     setError("")
 
-    contractApi.search_contracts(buildQuery(null))
+    const token = matchProfil ? (getAccessToken() ?? undefined) : undefined
+    contractApi.search_contracts(buildQuery(null), token)
       .then(res => {
         if (cancelled) return
         setContracts(res.contracts ?? [])
@@ -356,7 +365,7 @@ function ExplorerContent() {
       .finally(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
-  }, [buildQuery])
+  }, [buildQuery, matchProfil])
 
   // Keeps the URL in sync so the current search stays bookmarkable/
   // shareable — also the prerequisite for turning a search into a saved
@@ -372,15 +381,17 @@ function ExplorerContent() {
     organisations.forEach(v => params.append("organisation", v))
     if (closingWithin) params.set("closing_within", String(closingWithin))
     if (sort !== "date_fermeture") params.set("sort", sort)
+    if (matchProfil) params.set("match", "profil")
     const query = params.toString()
     router.replace(query ? `/explorer?${query}` : "/explorer", { scroll: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQ, statuts, regions, natures, categories, organisations, closingWithin, sort])
+  }, [debouncedQ, statuts, regions, natures, categories, organisations, closingWithin, sort, matchProfil])
 
   function handleLoadMore() {
     if (!nextCursor || loadingMore) return
     setLoadingMore(true)
-    contractApi.search_contracts(buildQuery(nextCursor))
+    const token = matchProfil ? (getAccessToken() ?? undefined) : undefined
+    contractApi.search_contracts(buildQuery(nextCursor), token)
       .then(res => {
         setContracts(cs => [...cs, ...(res.contracts ?? [])])
         setNextCursor(res.next_cursor)
@@ -485,12 +496,30 @@ function ExplorerContent() {
         <ClosingWithinFilter value={closingWithin} onChange={setClosingWithin} />
         <SortDropdown value={sort} onChange={setSort} />
 
+        {matchProfil && (
+          <span style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "8px 12px", borderRadius: 10, fontSize: 12.5, fontWeight: 600,
+            color: "#00786f", background: "rgba(0,179,169,0.08)", border: "1.5px solid #00B3A9",
+          }}>
+            Compatible avec votre profil
+            <button
+              type="button"
+              onClick={() => setMatchProfil(false)}
+              aria-label="Retirer le filtre profil"
+              style={{ border: "none", background: "none", cursor: "pointer", color: "#00786f", fontSize: 14, padding: 0, lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </span>
+        )}
+
         {hasFilters && (
           <button
             type="button"
             onClick={() => {
               setQ(""); setStatuts([]); setRegions([]); setNatures([]); setCategories([])
-              setOrganisations([]); setClosingWithin(null)
+              setOrganisations([]); setClosingWithin(null); setMatchProfil(false)
             }}
             style={{
               padding: "7px 14px", border: "1.5px solid #fecaca", borderRadius: 50,
