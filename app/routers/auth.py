@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Cookie, Depends, Request, Response
 from sqlalchemy.orm import Session
 
@@ -31,12 +33,12 @@ def login_user(request: Request, response: Response, payload: UserLogin, db: Ses
 
 @router.post('/refresh', response_model=TokenResponse)
 @limiter.limit("5/minute")
-def refresh(request: Request, refresh_token: str = Cookie(None), db: Session = Depends(get_db)):
+def refresh(request: Request, refresh_token: Optional[str] = Cookie(None), db: Session = Depends(get_db)):
     return new_refresh_token(refresh_token, db)
 
 @router.post("/logout", response_model=dict)
 @limiter.limit("5/minute")
-def logout_user(request: Request, refresh_token: str = Cookie(None), db: Session = Depends(get_db)):
+def logout_user(request: Request, refresh_token: Optional[str] = Cookie(None), db: Session = Depends(get_db)):
     logout(refresh_token, db)
     return {"message": "Logged out successfully"}
 

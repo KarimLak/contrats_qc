@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import os
+from typing import Optional
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
@@ -24,25 +25,38 @@ def create_refresh_token(data: dict) -> str:
     to_encode.update({"exp": expire, "type": os.getenv("REFRESH_TYPE")})
     return jwt.encode(to_encode, os.getenv('SECRET_KEY'), algorithm=os.getenv('ALGORITHM'))
 
-def new_refresh_token(refresh_token: str, db: Session) -> TokenResponse:
+def new_refresh_token(refresh_token: Optional[str], db: Session) -> TokenResponse:
+    # verify_token always either returns a non-empty username or raises —
+    # no "falsy but no exception" case left to guard against here.
     username = verify_token(refresh_token, db, os.getenv("REFRESH_TYPE"))
-    if not username:
-        raise HTTPException(status_code=500, detail='logout')
     access_token = create_access_token({"sub": username})
     return TokenResponse(access_token=access_token)
 
-def verify_token(token: str, db: Session, expected_type: str = "access") -> str:
+def verify_token(token: Optional[str], db: Session, expected_type: str = "access") -> str:
+    # No cookie / no Authorization header (e.g. AuthContext's silent
+    # refresh() probe on first page load with no session yet) previously
+    # fell through to jwt.decode(None, ...), which python-jose doesn't
+    # raise JWTError for — it raises a bare TypeError, which the
+    # `except JWTError` below never catches, surfacing as an unhandled 500
+    # with no CORS headers (FastAPI's default error handler runs before
+    # CORSMiddleware gets to add them). "No token" is a 401, not a crash.
+    if not token:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    if is_black_list_token(token, db):
+        # This used to be `return HTTPException(...)` instead of `raise` —
+        # the exception object was returned as if it were the username
+        # (truthy, so `if not username` downstream never caught it), which
+        # meant a blacklisted/logged-out refresh token silently kept working.
+        raise HTTPException(status_code=401, detail="Invalid token")
     try:
-        if (is_black_list_token(token, db)):
-            return HTTPException(status_code=500, detail="Invalid token")
         payload = jwt.decode(token, os.getenv('SECRET_KEY'), algorithms=os.getenv('ALGORITHM'))
-        username = payload.get("sub")
-        type = payload.get("type")
-        if not username or type != expected_type:
-            raise HTTPException(status_code=401, detail= "Invalid token")
-        return username
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    username = payload.get("sub")
+    token_type = payload.get("type")
+    if not username or token_type != expected_type:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return username
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
