@@ -1,7 +1,21 @@
 import pytest
+from sqlalchemy import select
 
-from app.database import SessionLocal
+from app.database import SessionLocal, create_tables
+from app.models.contract import Contract
 from app.models.profile import BusinessProfile
+from app.models.user import User
+import app.models.saved_contract  # noqa: F401 — registers SavedContract with Base.metadata for create_tables() below
+
+# create_tables() is idempotent (CREATE TABLE only ever runs against tables
+# SQLAlchemy doesn't already know about) and this repo has no migration
+# tool (see app/database.py) — every table, including brand new ones like
+# saved_contracts, only exists once something has called this. Session-
+# scoped + autouse so it runs once before any test needs the table, the
+# same way app/main.py does it for the live server.
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_tables():
+    create_tables()
 
 # No test-database isolation exists anywhere in this repo (no migration
 # tool, no docker-compose test service — see app/database.py's comments on
@@ -51,3 +65,40 @@ def compatible_profile(db):
     finally:
         db.delete(profile)
         db.commit()
+
+
+@pytest.fixture
+def test_user(db, compatible_profile):
+    """Out-of-band id (999999), same rationale as compatible_profile — this
+    table's id sequence is also behind its real max id."""
+    user = User(
+        id=999999,
+        username="pytest-saved-contracts",
+        email="pytest-saved-contracts@example.com",
+        hashed_password="not-a-real-hash",
+        roles=["user"],
+        is_active=True,
+        business_id=compatible_profile.id,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    try:
+        yield user
+    finally:
+        # Any saved_contracts row a test created against this user (FK:
+        # saved_contracts.user_id -> users.id, default RESTRICT) would
+        # otherwise block this delete and leave both this row *and*
+        # compatible_profile's teardown stranded for the next run.
+        from sqlalchemy import text
+        db.execute(text("DELETE FROM saved_contracts WHERE user_id = :uid"), {"uid": user.id})
+        db.delete(user)
+        db.commit()
+
+
+@pytest.fixture
+def sample_contract_id(db):
+    """A real, existing contract id — read-only, never mutated. saved_contracts
+    tests need a genuine FK target, not a fabricated one, since the whole
+    point is exercising the real contracts table relationship."""
+    return db.execute(select(Contract.id).limit(1)).scalar_one()
