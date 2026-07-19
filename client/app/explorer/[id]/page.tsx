@@ -1,10 +1,20 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import DOMPurify from "dompurify"
 import AppLayout from "@/components/AppLayout"
 import { contractApi, type Contract } from "@/api/contract"
 import { PinIcon, TagIcon } from "@/components/icons"
+
+// description/remarque come from SEAO as raw Word-exported HTML (MSO markup,
+// inline styles), not plain text — rendering it as text just dumps the tag
+// soup on screen. Sanitize before dangerouslySetInnerHTML since this is
+// scraped third-party content, not something we authored ourselves.
+function SanitizedHtml({ html, style }: { html: string; style?: React.CSSProperties }) {
+  const clean = useMemo(() => DOMPurify.sanitize(html), [html])
+  return <div style={style} dangerouslySetInnerHTML={{ __html: clean }} />
+}
 
 const MONTHS_FR = ["jan","fév","mar","avr","mai","juin","juil","août","sep","oct","nov","déc"]
 
@@ -260,9 +270,12 @@ function DetailContent() {
         <div>
           {c.description && (
             <Section title="Description">
-              <p style={{ fontSize: 14, color: "#4a6a6a", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
-                {c.description}
-              </p>
+              <div style={{ maxWidth: "100%", overflowX: "auto" }}>
+                <SanitizedHtml
+                  html={c.description}
+                  style={{ fontSize: 14, color: "#4a6a6a", lineHeight: 1.75 }}
+                />
+              </div>
             </Section>
           )}
 
@@ -277,9 +290,12 @@ function DetailContent() {
 
           {c.remarque && (
             <Section title="Remarques">
-              <p style={{ fontSize: 13, color: "#4a6a6a", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
-                {c.remarque}
-              </p>
+              <div style={{ maxWidth: "100%", overflowX: "auto" }}>
+                <SanitizedHtml
+                  html={c.remarque}
+                  style={{ fontSize: 13, color: "#4a6a6a", lineHeight: 1.75 }}
+                />
+              </div>
             </Section>
           )}
 
