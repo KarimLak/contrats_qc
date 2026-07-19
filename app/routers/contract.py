@@ -10,10 +10,12 @@ from app.services.token import get_current_user
 from app.schemas.contract import (
     ContractFilter, ContractFilterResponse, ContractResponse, ContractSortField, SortOrder,
     RecommendedContractsResponse, ContractFeedbackRequest, ContractFeedbackResponse, SavedContractsResponse,
+    ExplorerContractsResponse, ExplorerSort, OrganisationSuggestion,
 )
 from app.services.contract import (
     get_contracts, get_contract, get_recommended_contracts,
     set_contract_feedback, remove_contract_feedback, get_saved_contracts,
+    search_explorer_contracts, suggest_organisations,
 )
 
 router = APIRouter(prefix='/contract')
@@ -42,6 +44,35 @@ def list_contracts(request: Request,
         date_publication=date_publication, date_fermeture=date_fermeture,
     )
     return get_contracts(filter, skip, limit, sort_by, sort_order, db)
+
+# Registered before /{contract_id} so "search"/"organisations" aren't swallowed by the int path param.
+@router.get('/search', response_model=ExplorerContractsResponse)
+@limiter.limit("100/minute")
+def search_contracts(request: Request,
+                     q: Optional[str] = Query(default=None, max_length=200),
+                     statut: Optional[List[str]] = Query(default=None),
+                     region: Optional[List[str]] = Query(default=None),
+                     nature_contrat: Optional[List[str]] = Query(default=None),
+                     categorie: Optional[List[str]] = Query(default=None),
+                     organisation: Optional[List[str]] = Query(default=None),
+                     closing_within: Optional[int] = Query(default=None, ge=1, le=365),
+                     sort: ExplorerSort = Query(ExplorerSort.date_fermeture),
+                     cursor: Optional[str] = Query(default=None),
+                     limit: int = Query(20, ge=1, le=100),
+                     db: Session = Depends(get_db)):
+    filters = {
+        "statut": statut, "region": region, "nature_contrat": nature_contrat,
+        "categorie": categorie, "organisation": organisation,
+    }
+    return search_explorer_contracts(filters, q, closing_within, sort, cursor, limit, db)
+
+@router.get('/organisations', response_model=List[OrganisationSuggestion])
+@limiter.limit("100/minute")
+def list_organisation_suggestions(request: Request,
+                                  q: Optional[str] = Query(default=None, max_length=200),
+                                  limit: int = Query(20, ge=1, le=50),
+                                  db: Session = Depends(get_db)):
+    return suggest_organisations(q, limit, db)
 
 # Registered before /{contract_id} so "recommended" isn't swallowed by the int path param.
 @router.get('/recommended', response_model=RecommendedContractsResponse)

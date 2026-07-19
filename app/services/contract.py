@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from urllib.parse import urlencode
 
 from fastapi import HTTPException
@@ -11,6 +11,9 @@ from app.repositories.contract import (
 from app.repositories.feedback import (
     upsert_feedback, delete_feedback, get_saved_contracts_list, get_saved_contracts_count,
 )
+from app.repositories.explorer import (
+    get_explorer_page, get_explorer_count, get_explorer_facets, get_organisation_suggestions,
+)
 from app.repositories.profile import business_profile
 from app.repositories.user import get_user
 from app.models.profile import BusinessProfile
@@ -18,6 +21,8 @@ from app.schemas.contract import (
     ContractFilter, ContractFilterResponse, ContractResponse, ContractSortField, SortOrder,
     RecommendedContract, RecommendedContractsResponse, ScoreBreakdown,
     ContractFeedbackResponse, FeedbackAction, SavedContract, SavedContractsResponse,
+    ExplorerContract, ExplorerContractsResponse, ExplorerFacets, ExplorerSort,
+    FacetOption, OrganisationSuggestion,
 )
 
 # Only region is used to pre-filter the Explorateur link (not nature_contrat
@@ -120,5 +125,30 @@ def get_saved_contracts(username: str, skip: int, limit: int, db: Session) -> Sa
         for contract, saved_at in rows
     ]
     return SavedContractsResponse(skip=skip, limit=limit, total=total, contracts=contracts)
+
+
+def search_explorer_contracts(
+    filters: dict, q: Optional[str], closing_within: Optional[int],
+    sort: ExplorerSort, cursor: Optional[str], limit: int, db: Session,
+) -> ExplorerContractsResponse:
+    total = get_explorer_count(filters, q, closing_within, db)
+    contract_rows, next_cursor = get_explorer_page(filters, q, closing_within, sort.value, cursor, limit, db)
+    facets_raw = get_explorer_facets(filters, q, closing_within, db)
+
+    contracts = [ExplorerContract.model_validate(c) for c in contract_rows]
+    facets = ExplorerFacets(
+        **{
+            dimension: [FacetOption(value=v, count=n) for v, n in options]
+            for dimension, options in facets_raw.items()
+        }
+    )
+    return ExplorerContractsResponse(
+        limit=limit, total=total, next_cursor=next_cursor, facets=facets, contracts=contracts,
+    )
+
+
+def suggest_organisations(q: Optional[str], limit: int, db: Session) -> List[OrganisationSuggestion]:
+    rows = get_organisation_suggestions(q, limit, db)
+    return [OrganisationSuggestion(name=name, count=count) for name, count in rows]
 
 

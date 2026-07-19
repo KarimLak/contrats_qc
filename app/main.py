@@ -8,7 +8,7 @@ from slowapi import Limiter
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import limiter
-from app.database import create_tables, ensure_analytics_support
+from app.database import create_tables, ensure_analytics_support, ensure_search_support
 
 
 app = FastAPI()
@@ -32,6 +32,7 @@ app.add_middleware(
 
 create_tables()
 ensure_analytics_support()
+ensure_search_support()
 
 @app.get("/health")
 def health():

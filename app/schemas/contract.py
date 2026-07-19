@@ -193,3 +193,55 @@ class SavedContractsResponse(BaseModel):
     contracts: List[SavedContract]
 
     model_config = {"from_attributes": True}
+
+
+# ── Explorer (search + facets + keyset) ───────────────────────────────────────
+class ExplorerSort(str, Enum):
+    date_fermeture = "date_fermeture"      # default: most urgent (closes soonest) first
+    date_publication = "date_publication"  # most recently published first
+    pertinence = "pertinence"              # ts_rank desc — only meaningful with q; falls back otherwise
+
+
+# Same rationale as RecommendedContract: only the columns the card renders,
+# so load_only() on the listing query isn't immediately undone by a schema
+# that force-loads the rest through lazy attribute access.
+class ExplorerContract(BaseModel):
+    id: int = Field(..., ge=0)
+    titre: str
+    organisation: str
+    statut: str
+    nature_contrat: str
+    categorie: str
+    region: str
+    type_avis: str
+    date_publication: str
+    date_fermeture: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class FacetOption(BaseModel):
+    value: str
+    count: int
+
+
+class ExplorerFacets(BaseModel):
+    statut: List[FacetOption]
+    region: List[FacetOption]
+    nature_contrat: List[FacetOption]
+    categorie: List[FacetOption]
+
+
+class ExplorerContractsResponse(BaseModel):
+    limit: int = Field(20, ge=1, le=100)
+    total: int = Field(0, ge=0)
+    next_cursor: Optional[str] = None
+    facets: ExplorerFacets
+    contracts: List[ExplorerContract]
+
+    model_config = {"from_attributes": True}
+
+
+class OrganisationSuggestion(BaseModel):
+    name: str
+    count: int

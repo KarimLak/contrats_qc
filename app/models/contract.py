@@ -1,6 +1,7 @@
 from typing import Optional
 
 from sqlalchemy import JSON, Boolean, Integer, String, Text
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -79,4 +80,10 @@ class Contract(Base):
     contact_nom:       Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     contact_email:     Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     contact_telephone: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    # ── Search ────────────────────────────────────────────────────────────────
+    # Postgres-generated STORED column (see ensure_search_support() in
+    # app/database.py) — never written by the app, only read in query
+    # expressions (Contract.search_vector.op('@@')(...)).
+    search_vector: Mapped[Optional[str]] = mapped_column(TSVECTOR, nullable=True)
 

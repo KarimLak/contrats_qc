@@ -85,3 +85,46 @@ def ensure_analytics_support():
         ))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_contracts_region ON contracts (region)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_contracts_statut ON contracts (statut)"))
+
+# ── Explorer full-text search support ────────────────────────────────────────
+# search_vector is a STORED generated column (Postgres maintains it on every
+# INSERT/UPDATE — no app-side trigger to keep in sync) combining titre
+# (weight A), organisation (B) and description (C), so a title match ranks
+# above an incidental description match via ts_rank. Backed by a GIN index,
+# the standard index type for tsvector @@ tsquery lookups.
+#
+# Plain 'french' doesn't fold accents (to_tsvector('french','déneigement')
+# does NOT match websearch_to_tsquery('french','deneigement')) — confirmed
+# against live data: an unaccented query matched 1/70 of the rows the
+# accented spelling matched. Typing without accents is common enough
+# (keyboard layout, habit) that this would silently gut recall, so search
+# runs through a custom 'french_unaccent' config (french + the unaccent
+# extension's dictionary ahead of the French stemmer) instead of bare
+# 'french'. CREATE TEXT SEARCH CONFIGURATION has no IF NOT EXISTS, hence the
+# existence check.
+def ensure_search_support():
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
+
+        config_exists = conn.execute(text(
+            "SELECT 1 FROM pg_ts_config WHERE cfgname = 'french_unaccent'"
+        )).first()
+        if not config_exists:
+            conn.execute(text("CREATE TEXT SEARCH CONFIGURATION french_unaccent (COPY = french)"))
+            conn.execute(text(
+                "ALTER TEXT SEARCH CONFIGURATION french_unaccent "
+                "ALTER MAPPING FOR hword, hword_part, word WITH unaccent, french_stem"
+            ))
+
+        conn.execute(text("""
+            ALTER TABLE contracts ADD COLUMN IF NOT EXISTS search_vector tsvector
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('french_unaccent', coalesce(titre, '')), 'A') ||
+                setweight(to_tsvector('french_unaccent', coalesce(organisation, '')), 'B') ||
+                setweight(to_tsvector('french_unaccent', coalesce(description, '')), 'C')
+            ) STORED
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_contracts_search_vector "
+            "ON contracts USING GIN (search_vector)"
+        ))

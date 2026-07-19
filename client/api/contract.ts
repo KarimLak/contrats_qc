@@ -147,6 +147,60 @@ export interface SavedContractsResponse {
   contracts: SavedContract[];
 }
 
+export type ExplorerSort = "date_fermeture" | "date_publication" | "pertinence"
+
+// Same rationale as RecommendedContract — only the columns the card renders.
+export interface ExplorerContract {
+  id:                number;
+  titre:             string;
+  organisation:      string;
+  statut:            string;
+  nature_contrat:    string;
+  categorie:         string;
+  region:            string;
+  type_avis:         string;
+  date_publication:  string;
+  date_fermeture:    string | null;
+}
+
+export interface FacetOption {
+  value: string;
+  count: number;
+}
+
+export interface ExplorerFacets {
+  statut:          FacetOption[];
+  region:          FacetOption[];
+  nature_contrat:  FacetOption[];
+  categorie:       FacetOption[];
+}
+
+export interface ExplorerContractsResponse {
+  limit:        number;
+  total:        number;
+  next_cursor:  string | null;
+  facets:       ExplorerFacets;
+  contracts:    ExplorerContract[];
+}
+
+export interface OrganisationSuggestion {
+  name:  string;
+  count: number;
+}
+
+export interface ExplorerQuery {
+  q?:               string;
+  statut?:          string[];
+  region?:          string[];
+  nature_contrat?:  string[];
+  categorie?:       string[];
+  organisation?:    string[];
+  closing_within?:  number;
+  sort?:            ExplorerSort;
+  cursor?:          string | null;
+  limit?:           number;
+}
+
 export const contractApi = {
   get_contracts(filter: Record<string, string | string[]>, skip: number, limit: number): Promise<ContractFilterResponse> {
     const params = new URLSearchParams()
@@ -199,5 +253,27 @@ export const contractApi = {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     })
+  },
+
+  search_contracts(query: ExplorerQuery): Promise<ExplorerContractsResponse> {
+    const params = new URLSearchParams()
+    if (query.q) params.append("q", query.q)
+    query.statut?.forEach(v => params.append("statut", v))
+    query.region?.forEach(v => params.append("region", v))
+    query.nature_contrat?.forEach(v => params.append("nature_contrat", v))
+    query.categorie?.forEach(v => params.append("categorie", v))
+    query.organisation?.forEach(v => params.append("organisation", v))
+    if (query.closing_within) params.append("closing_within", String(query.closing_within))
+    if (query.sort) params.append("sort", query.sort)
+    if (query.cursor) params.append("cursor", query.cursor)
+    params.append("limit", String(query.limit ?? 20))
+    return request<ExplorerContractsResponse>(`/contract/search?${params.toString()}`, { method: "GET" })
+  },
+
+  get_organisation_suggestions(q: string, limit = 20): Promise<OrganisationSuggestion[]> {
+    const params = new URLSearchParams()
+    if (q) params.append("q", q)
+    params.append("limit", String(limit))
+    return request<OrganisationSuggestion[]>(`/contract/organisations?${params.toString()}`, { method: "GET" })
   },
 };
