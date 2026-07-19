@@ -9,7 +9,7 @@ from app.repositories.contract import _match_expressions, _not_expired, compatib
 
 # This whole module answers "where are MY opportunities", not "what does the
 # market look like" — every query below starts from compatible_contracts_query
-# (app/repositories/contract.py — the same sector-OR-expertise qualification
+# (app/repositories/contract.py — the same expertise-based qualification
 # /recommended and the Explorateur's match=profil filter use) rather than the
 # unfiltered contracts table. Sharing that one function instead of each
 # caller re-deriving "is this compatible" is what keeps these counts and the
@@ -22,10 +22,11 @@ from app.repositories.contract import _match_expressions, _not_expired, compatib
 # it's dropped here.
 
 def profile_is_usable(profile: BusinessProfile) -> bool:
-    """A profile with neither a sector nor an expertise entry can never
-    satisfy core_match (sector OR expertise) — every block below would
-    silently return "0 results" instead of surfacing *why*."""
-    return bool(profile.sector) or bool(profile.expertise)
+    """A profile with no expertise entries can never satisfy core_match
+    (expertise-only qualification — see _match_expressions) — every block
+    below would silently return "0 results" instead of surfacing *why*.
+    sector alone no longer qualifies, so it isn't checked here."""
+    return bool(profile.expertise)
 
 def _open_predicate():
     return and_(Contract.statut != 'Annulé', _not_expired())

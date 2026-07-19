@@ -53,9 +53,12 @@ def get_contract_by_id(contract_id: int, db: Session) -> Contract | None:
 # budget_min/budget_max aren't scored: the Contract model has no estimated-value field
 # to compare them against (garantie_valeur is a bid security amount, not the contract's
 # value), so faking a budget signal from it would be noise, not signal.
-# A contract must match on sector and/or expertise to be considered "recommended" at
-# all — region/type/size only add points on top, they don't qualify a contract by
-# themselves (otherwise every open contract in your region would show up).
+# A contract must match on expertise to be considered "recommended"/"compatible"
+# at all — sector alone no longer qualifies (per explicit product decision:
+# sector-only was too broad), it's now purely a scoring bonus on top of an
+# already-qualifying expertise match. region/type/size work the same way —
+# they only add points, they never qualify a contract by themselves
+# (otherwise every open contract in your region would show up).
 SCORE_EXPERTISE = 35
 SCORE_SECTOR = 25
 SCORE_REGION = 20
@@ -100,7 +103,9 @@ def _match_expressions(profile: BusinessProfile):
         else false()
     )
 
-    core_match = or_(sector_match, expertise_match)
+    # Qualification is expertise-only; sector_match still feeds base_score
+    # below as a bonus, it just can't qualify a contract on its own anymore.
+    core_match = expertise_match
     base_score = (
         case((expertise_match, SCORE_EXPERTISE), else_=0)
         + case((sector_match, SCORE_SECTOR), else_=0)
@@ -111,17 +116,21 @@ def _match_expressions(profile: BusinessProfile):
     return core_match, base_score, expertise_match, sector_match, region_match, contract_type_match, sme_bonus
 
 # ── Profile compatibility (single source of truth) ────────────────────────────
-# "Is this contract compatible with this business profile" — sector OR
-# expertise, the same qualification core_match already computes above — used
-# to only exist embedded inside _match_expressions (built for scoring), so
-# every other caller that needed a plain yes/no answer (analytics KPIs, the
-# Explorateur, links built by the frontend) re-derived its own approximation.
-# That's exactly how the KPI-vs-Explorateur count mismatch happened: the KPI
-# counted the true sector-OR-expertise set, but the frontend could only
-# encode one arm of that OR as a categorie= link, silently undercounting.
-# Every caller that needs "is this contract compatible with X's profile" —
-# scoring, analytics, or the Explorateur's match=profil filter — should call
-# this instead of re-deriving the condition.
+# "Is this contract compatible with this business profile" — expertise match
+# (categorie), the same qualification core_match already computes above —
+# used to only exist embedded inside _match_expressions (built for scoring),
+# so every other caller that needed a plain yes/no answer (analytics KPIs,
+# the Explorateur, links built by the frontend) re-derived its own
+# approximation, which is how a KPI-vs-Explorateur count mismatch happened
+# once already. Every caller that needs "is this contract compatible with
+# X's profile" — scoring, analytics, the Explorateur's match=profil filter,
+# or an alert's match=profil filter — should call this instead of
+# re-deriving the condition.
+#
+# Was sector-OR-expertise; narrowed to expertise-only per explicit product
+# decision (sector alone was judged too broad a qualifier). sector_match is
+# still a scoring bonus in _match_expressions above, it just can't qualify a
+# contract by itself anymore.
 def compatible_contracts_query(profile: BusinessProfile):
     core_match, *_ = _match_expressions(profile)
     # A cancelled notice is never "open" regardless of what its date_fermeture

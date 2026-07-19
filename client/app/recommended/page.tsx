@@ -210,7 +210,7 @@ function RecommendedContent() {
         }}>
           Aucune recommandation pour l'instant.
           <div style={{ marginTop: 10 }}>
-            Complétez vos secteurs et domaines d'expertise dans{" "}
+            Complétez vos domaines d'expertise dans{" "}
             <Link href="/profile" style={{ color: "#00B3A9", fontWeight: 600, textDecoration: "none" }}>votre profil</Link>
             {" "}ou parcourez{" "}
             <Link href="/explorer" style={{ color: "#00B3A9", fontWeight: 600, textDecoration: "none" }}>l'explorateur</Link>.

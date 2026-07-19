@@ -107,10 +107,10 @@ function KpisSection({ data, loading, error }: { data: ProfileKpis | null; loadi
     )
   }
 
-  // match=profil, not categorie=[...]: the KPI counts sector-OR-expertise
-  // (compatible_contracts_query), which a categorie-only link can't
-  // represent — it would silently drop every contract that only matched
-  // via sector, undercounting exactly the way this whole fix responds to.
+  // match=profil, not categorie=[...]: the KPI counts via
+  // compatible_contracts_query (expertise-based), which stays the single
+  // source of truth for "compatible" even as that rule evolves — a
+  // categorie-only link would have to be kept in sync by hand instead.
   const baseFilters = { match: "profil" as const }
   const delta = data.new_this_week - data.new_last_week
   const deltaColor = delta === 0 ? "#8ba5a5" : delta > 0 ? "#16a34a" : "#dc2626"
@@ -510,7 +510,7 @@ function EmptyProfileState() {
       color: "#8ba5a5", fontSize: 14,
     }}>
       <p style={{ marginBottom: 14 }}>
-        Aucun avis ouvert ne correspond à votre profil pour l'instant — ou votre profil n'a pas encore de secteur ni de domaine d'expertise.
+        Aucun avis ouvert ne correspond à votre profil pour l'instant — ou votre profil n'a pas encore de domaine d'expertise.
       </p>
       <Link href="/profile" style={{
         display: "inline-block", padding: "11px 24px", background: "#00B3A9", color: "white",

@@ -24,7 +24,7 @@ from app.schemas.contract import (
 )
 
 # Only region is used to pre-filter the Explorateur link (not nature_contrat
-# or categorie): recommendations qualify on sector OR expertise, but the
+# or categorie): recommendations qualify on expertise (categorie), but the
 # Explorateur's filters AND across fields — combining both there would show
 # a strict subset of what "compatible" means here, undershooting the count
 # promised by the "voir les N autres avis" footer instead of just being a

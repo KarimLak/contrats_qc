@@ -191,7 +191,7 @@ class ExplorerSort(str, Enum):
 
 class ExplorerMatchMode(str, Enum):
     # Applies compatible_contracts_query(profile) server-side — the same
-    # sector-OR-expertise test /recommended and the Analytics blocks qualify
+    # expertise-based test /recommended and the Analytics blocks qualify
     # on — instead of the frontend approximating it as a categorie= list.
     profil = "profil"
 
