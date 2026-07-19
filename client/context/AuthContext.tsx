@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { authApi, User, BusinessProfileData } from "../api/auth";
+import { getAccessToken, setAccessToken, onAuthExpired } from "../api/http";
 
 export type Subscription = "user" | "pro" | "enterprise";
 
@@ -22,19 +23,23 @@ function deriveSubscription(user: User | null): Subscription {
   return "user";
 }
 
-let _token: string | null = null;
-
-export function getAccessToken(): string | null {
-  return _token;
-}
+export { getAccessToken };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // If the background refresh (proactive or 401-triggered) ever comes back
+  // empty — the refresh token itself expired or got blacklisted — drop the
+  // user client-side so AppLayout's redirect-to-/login effect kicks in,
+  // instead of leaving stale UI up with a dead session.
+  useEffect(() => {
+    onAuthExpired(() => setUser(null));
+  }, []);
+
   useEffect(() => {
     authApi.refresh()
-      .then((data) => { _token = data.access_token; return authApi.me(_token); })
+      .then((data) => { setAccessToken(data.access_token); return authApi.me(data.access_token); })
       .then(setUser)
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -42,8 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string): Promise<void> => {
     const data = await authApi.login(username, password);
-    _token = data.access_token;
-    setUser(await authApi.me(_token));
+    setAccessToken(data.access_token);
+    setUser(await authApi.me(data.access_token));
   }, []);
 
   const register = useCallback(async (username: string, email: string, password: string, business: BusinessProfileData): Promise<void> => {
@@ -53,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async (): Promise<void> => {
     try { await authApi.logout(); } catch {}
-    _token = null;
+    setAccessToken(null);
     setUser(null);
   }, []);
 

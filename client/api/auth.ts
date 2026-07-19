@@ -1,19 +1,9 @@
+import { fetchJson } from "./http";
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/v1";
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    credentials: "include",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,          // allow callers to override or add headers
-    },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(body.detail);
-  }
-  return res.status === 204 ? null as T : res.json();
+function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  return fetchJson<T>(`${API}${path}`, options);
 }
 
 export interface User {

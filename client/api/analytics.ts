@@ -1,20 +1,9 @@
+import { fetchJson } from "./http";
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/v1";
 
-async function request<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    credentials: "include",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(body.detail);
-  }
-  return res.status === 204 ? null as T : res.json();
+function request<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
+  return fetchJson<T>(`${API}${path}`, { ...options, headers: { Authorization: `Bearer ${token}`, ...options.headers } });
 }
 
 // ── Block 1: KPIs "Votre marché" ─────────────────────────────────────────────
