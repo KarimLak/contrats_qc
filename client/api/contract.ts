@@ -3,11 +3,11 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/v1";
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     credentials: "include",
+    ...options,
     headers: {
       "Content-Type": "application/json",
-      ...options.headers,          
+      ...options.headers,
     },
-    ...options,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: "Request failed" }));
@@ -136,17 +136,6 @@ export interface ContractFeedbackResponse {
   created_at:  string;
 }
 
-export interface SavedContract extends Contract {
-  saved_at: string;
-}
-
-export interface SavedContractsResponse {
-  skip:      number;
-  limit:     number;
-  total:     number;
-  contracts: SavedContract[];
-}
-
 export type ExplorerSort = "date_fermeture" | "date_publication" | "pertinence"
 
 // Same rationale as RecommendedContract — only the columns the card renders.
@@ -226,16 +215,6 @@ export const contractApi = {
     if (cursor) params.append("cursor", cursor)
     params.append("limit", String(limit))
     return request<RecommendedContractsResponse>(`/contract/recommended?${params.toString()}`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
-    })
-  },
-
-  get_saved_contracts(skip: number, limit: number, token: string): Promise<SavedContractsResponse> {
-    const params = new URLSearchParams()
-    params.append("skip", String(skip))
-    params.append("limit", String(limit))
-    return request<SavedContractsResponse>(`/contract/saved?${params.toString()}`, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     })

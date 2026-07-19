@@ -182,19 +182,6 @@ class ContractFeedbackResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class SavedContract(ContractResponse):
-    saved_at: datetime
-
-
-class SavedContractsResponse(BaseModel):
-    skip: int = Field(0, ge=0)
-    limit: int = Field(20, ge=1, le=100)
-    total: int = Field(0, ge=0)
-    contracts: List[SavedContract]
-
-    model_config = {"from_attributes": True}
-
-
 # ── Explorer (search + facets + keyset) ───────────────────────────────────────
 class ExplorerSort(str, Enum):
     date_fermeture = "date_fermeture"      # default: most urgent (closes soonest) first

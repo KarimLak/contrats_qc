@@ -4,7 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation"
 import AppLayout from "@/components/AppLayout"
 import { ContractCard } from "@/components/ContractCard"
 import { contractApi, type ExplorerContract, type ExplorerFacets, type ExplorerSort, type OrganisationSuggestion } from "@/api/contract"
+import { savedContractsApi } from "@/api/savedContracts"
 import { getAccessToken } from "@/context/AuthContext"
+import { useToast } from "@/components/Toast"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
@@ -301,6 +303,11 @@ function ExplorerContent() {
   const [loading, setLoading]         = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError]             = useState("")
+  // contract_id -> saved_contracts row id, same session-local convention as
+  // /recommended (see its comment): idempotent create() self-heals a stale
+  // reload.
+  const [savedIds, setSavedIds]       = useState<Map<number, number>>(new Map())
+  const { showToast } = useToast()
 
   // Seeded once from the URL on mount (deep-linkable/shareable state) - read
   // only in the initializer so typing doesn't fight with the URL sync effect.
@@ -398,6 +405,36 @@ function ExplorerContent() {
       })
       .catch(() => setError("Impossible de charger la suite. Réessayez."))
       .finally(() => setLoadingMore(false))
+  }
+
+  function handleToggleSave(contract: ExplorerContract) {
+    const token = getAccessToken()
+    if (!token) return
+    const savedId = savedIds.get(contract.id)
+
+    if (savedId !== undefined) {
+      setSavedIds(ids => { const next = new Map(ids); next.delete(contract.id); return next })
+      savedContractsApi.remove(savedId, token).catch(() => {
+        setSavedIds(ids => new Map(ids).set(contract.id, savedId))
+        showToast("Impossible de retirer des sauvegardés. Réessayez.")
+      })
+      return
+    }
+
+    savedContractsApi.create(contract.id, token)
+      .then(entry => {
+        setSavedIds(ids => new Map(ids).set(contract.id, entry.id))
+        showToast(`« ${contract.titre.slice(0, 60)} » ajouté à votre suivi.`, {
+          actionLabel: "Annuler",
+          onAction: () => {
+            setSavedIds(ids => { const next = new Map(ids); next.delete(contract.id); return next })
+            savedContractsApi.remove(entry.id, token).catch(() => {})
+          },
+        })
+      })
+      .catch(() => {
+        showToast("Impossible de sauvegarder ce contrat. Réessayez.")
+      })
   }
 
   return (
@@ -564,7 +601,14 @@ function ExplorerContent() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {contracts.map(c => <ContractCard key={c.id} c={c} />)}
+          {contracts.map(c => (
+            <ContractCard
+              key={c.id}
+              c={c}
+              saved={savedIds.has(c.id)}
+              onToggleSave={() => handleToggleSave(c)}
+            />
+          ))}
         </div>
       )}
 

@@ -1,9 +1,10 @@
 "use client"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useCallback, useEffect, type ReactNode } from "react"
-import { useAuth } from "@/context/AuthContext"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { useAuth, getAccessToken } from "@/context/AuthContext"
 import { ToastProvider } from "@/components/Toast"
+import { savedContractsApi } from "@/api/savedContracts"
 
 const NAV: ({ href: string; label: string; pro: boolean } | { divider: true })[] = [
   { href: "/dashboard",   label: "Tableau de bord", pro: false },
@@ -21,10 +22,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading, subscription, logout } = useAuth()
   const router   = useRouter()
   const pathname = usePathname()
+  const [savedClosingSoon, setSavedClosingSoon] = useState(0)
 
   useEffect(() => {
     if (!loading && !user) router.push("/login")
   }, [user, loading, router])
+
+  // Sidebar badge: count of active-pipeline saved contracts closing within
+  // 7 days — not the total saved count. Gated behind Pro/Enterprise: a free
+  // user can't reach the Sauvegardés page (UpgradeGate), so the count would
+  // be meaningless noise for them.
+  useEffect(() => {
+    if (!user || subscription === "user") { setSavedClosingSoon(0); return }
+    const token = getAccessToken()
+    if (!token) return
+    let cancelled = false
+    savedContractsApi.alertsCount(token)
+      .then(res => { if (!cancelled) setSavedClosingSoon(res.count ?? 0) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [user, subscription])
 
   const handleLogout = useCallback(async () => {
     await logout()
@@ -94,6 +111,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 color: active ? "#00B3A9" : locked ? "rgba(255,255,255,0.32)" : "rgba(255,255,255,0.72)",
               }}>
                 <span style={{ fontSize: 14, fontWeight: active ? 600 : 400, flex: 1, lineHeight: 1.2 }}>{item.label}</span>
+                {item.href === "/saved" && !locked && savedClosingSoon > 0 && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, minWidth: 18, textAlign: "center",
+                    padding: "2px 6px", borderRadius: 10, background: "#dc2626", color: "white",
+                  }}>
+                    {savedClosingSoon}
+                  </span>
+                )}
                 {locked && (
                   <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, background: "rgba(0,179,169,0.18)", color: "#00B3A9", letterSpacing: 0.5 }}>PRO</span>
                 )}

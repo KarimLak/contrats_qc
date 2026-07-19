@@ -4,6 +4,7 @@ import Link from "next/link"
 import AppLayout from "@/components/AppLayout"
 import { ContractCard, daysLeft, isClosingSoon } from "@/components/ContractCard"
 import { contractApi, type RecommendedContract } from "@/api/contract"
+import { savedContractsApi } from "@/api/savedContracts"
 import { getAccessToken } from "@/context/AuthContext"
 import { useToast } from "@/components/Toast"
 
@@ -18,7 +19,12 @@ function RecommendedContent() {
   const [loading, setLoading]         = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError]             = useState("")
-  const [savedIds, setSavedIds]       = useState<Set<number>>(new Set())
+  // contract_id -> saved_contracts row id (needed for DELETE /saved/{id}).
+  // Session-local only: a page reload won't reflect contracts already saved
+  // in a prior session, but re-clicking "Sauvegarder" self-heals since the
+  // create endpoint is idempotent (POST /saved on an already-saved contract
+  // just returns the existing row instead of erroring or duplicating).
+  const [savedIds, setSavedIds]       = useState<Map<number, number>>(new Map())
   const { showToast } = useToast()
 
   const remainingInExplorer = Math.max(0, total - contracts.length)
@@ -66,34 +72,29 @@ function RecommendedContent() {
   function handleToggleSave(contract: RecommendedContract) {
     const token = getAccessToken()
     if (!token) return
-    const wasSaved = savedIds.has(contract.id)
+    const savedId = savedIds.get(contract.id)
 
-    setSavedIds(ids => {
-      const next = new Set(ids)
-      wasSaved ? next.delete(contract.id) : next.add(contract.id)
-      return next
-    })
-
-    if (wasSaved) {
-      contractApi.remove_feedback(contract.id, token).catch(() => {
-        setSavedIds(ids => new Set(ids).add(contract.id))
+    if (savedId !== undefined) {
+      setSavedIds(ids => { const next = new Map(ids); next.delete(contract.id); return next })
+      savedContractsApi.remove(savedId, token).catch(() => {
+        setSavedIds(ids => new Map(ids).set(contract.id, savedId))
         showToast("Impossible de retirer des sauvegardés. Réessayez.")
       })
       return
     }
 
-    contractApi.set_feedback(contract.id, "saved", token)
-      .then(() => {
-        showToast(`« ${contract.titre.slice(0, 60)} » ajouté aux sauvegardés.`, {
+    savedContractsApi.create(contract.id, token)
+      .then(entry => {
+        setSavedIds(ids => new Map(ids).set(contract.id, entry.id))
+        showToast(`« ${contract.titre.slice(0, 60)} » ajouté à votre suivi.`, {
           actionLabel: "Annuler",
           onAction: () => {
-            setSavedIds(ids => { const next = new Set(ids); next.delete(contract.id); return next })
-            contractApi.remove_feedback(contract.id, token).catch(() => {})
+            setSavedIds(ids => { const next = new Map(ids); next.delete(contract.id); return next })
+            savedContractsApi.remove(entry.id, token).catch(() => {})
           },
         })
       })
       .catch(() => {
-        setSavedIds(ids => { const next = new Set(ids); next.delete(contract.id); return next })
         showToast("Impossible de sauvegarder ce contrat. Réessayez.")
       })
   }

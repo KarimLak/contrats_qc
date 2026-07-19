@@ -8,9 +8,7 @@ from app.repositories.contract import (
     get_recommended_contracts_page, get_recommended_contracts_count,
     get_recommended_contracts_closing_soon_count, RECOMMENDED_PAGE_CAP,
 )
-from app.repositories.feedback import (
-    upsert_feedback, delete_feedback, get_saved_contracts_list, get_saved_contracts_count,
-)
+from app.repositories.feedback import upsert_feedback, delete_feedback
 from app.repositories.explorer import (
     get_explorer_page, get_explorer_count, get_explorer_facets, get_organisation_suggestions,
 )
@@ -20,7 +18,7 @@ from app.models.profile import BusinessProfile
 from app.schemas.contract import (
     ContractFilter, ContractFilterResponse, ContractResponse, ContractSortField, SortOrder,
     RecommendedContract, RecommendedContractsResponse, ScoreBreakdown,
-    ContractFeedbackResponse, FeedbackAction, SavedContract, SavedContractsResponse,
+    ContractFeedbackResponse, FeedbackAction,
     ExplorerContract, ExplorerContractsResponse, ExplorerFacets, ExplorerSort, ExplorerMatchMode,
     FacetOption, OrganisationSuggestion,
 )
@@ -111,20 +109,6 @@ def remove_contract_feedback(username: str, contract_id: int, db: Session) -> No
 
     if not delete_feedback(user.id, contract_id, db):
         raise HTTPException(status_code=404, detail="Feedback not found")
-
-
-def get_saved_contracts(username: str, skip: int, limit: int, db: Session) -> SavedContractsResponse:
-    user = get_user(username, db)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    total = get_saved_contracts_count(user.id, db)
-    rows = get_saved_contracts_list(user.id, skip, limit, db)
-    contracts = [
-        SavedContract(**ContractResponse.model_validate(contract).model_dump(), saved_at=saved_at)
-        for contract, saved_at in rows
-    ]
-    return SavedContractsResponse(skip=skip, limit=limit, total=total, contracts=contracts)
 
 
 def search_explorer_contracts(
