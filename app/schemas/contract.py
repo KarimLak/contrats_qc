@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
 from enum import Enum
@@ -120,14 +121,75 @@ class ContractFilterResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class RecommendedContract(ContractResponse):
+class ScoreBreakdown(BaseModel):
+    expertise: bool
+    sector: bool
+    region: bool
+    contract_type: bool
+    sme_reserved: bool
+
+
+# Deliberately not ContractResponse-based: the /recommended listing only
+# loads the columns this card actually renders (see _LISTING_COLUMNS in
+# app/repositories/contract.py) — a schema requiring the other ~27 Contract
+# fields would force-load them right back via lazy attribute access,
+# defeating the point of load_only(). Full contract detail still lives at
+# GET /contract/{id} for the click-through.
+class RecommendedContract(BaseModel):
+    id: int = Field(..., ge=0)
+    titre: str
+    organisation: str
+    statut: str
+    nature_contrat: str
+    categorie: str
+    region: str
+    type_avis: str
+    date_publication: str
+    date_fermeture: Optional[str] = None
     match_score: int = Field(..., ge=0, le=100)
+    score_breakdown: ScoreBreakdown
+
+    model_config = {"from_attributes": True}
 
 
 class RecommendedContractsResponse(BaseModel):
+    limit: int = Field(20, ge=1, le=100)
+    total: int = Field(0, ge=0)
+    capped_total: int = Field(0, ge=0)
+    closing_soon_count: int = Field(0, ge=0)
+    next_cursor: Optional[str] = None
+    explorer_url: str
+    contracts: List[RecommendedContract]
+
+    model_config = {"from_attributes": True}
+
+
+# ── Feedback (save / not relevant) ────────────────────────────────────────────
+class FeedbackAction(str, Enum):
+    saved = "saved"
+    not_relevant = "not_relevant"
+
+
+class ContractFeedbackRequest(BaseModel):
+    action: FeedbackAction
+
+
+class ContractFeedbackResponse(BaseModel):
+    contract_id: int
+    action: FeedbackAction
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SavedContract(ContractResponse):
+    saved_at: datetime
+
+
+class SavedContractsResponse(BaseModel):
     skip: int = Field(0, ge=0)
     limit: int = Field(20, ge=1, le=100)
     total: int = Field(0, ge=0)
-    contracts: List[RecommendedContract]
+    contracts: List[SavedContract]
 
     model_config = {"from_attributes": True}

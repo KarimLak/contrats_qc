@@ -2,20 +2,26 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import AppLayout from "@/components/AppLayout"
-import { ContractCard } from "@/components/ContractCard"
+import { ContractCard, daysLeft, isClosingSoon } from "@/components/ContractCard"
 import { contractApi, type RecommendedContract } from "@/api/contract"
 import { getAccessToken } from "@/context/AuthContext"
+import { useToast } from "@/components/Toast"
 
 const PAGE_SIZE = 20
 
 function RecommendedContent() {
-  const [contracts, setContracts] = useState<RecommendedContract[]>([])
-  const [total, setTotal]         = useState(0)
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState("")
-  const [page, setPage]           = useState(0)
+  const [contracts, setContracts]     = useState<RecommendedContract[]>([])
+  const [total, setTotal]             = useState(0)
+  const [closingSoon, setClosingSoon] = useState(0)
+  const [nextCursor, setNextCursor]   = useState<string | null>(null)
+  const [explorerUrl, setExplorerUrl] = useState("/explorer")
+  const [loading, setLoading]         = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError]             = useState("")
+  const [savedIds, setSavedIds]       = useState<Set<number>>(new Set())
+  const { showToast } = useToast()
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const remainingInExplorer = Math.max(0, total - contracts.length)
 
   useEffect(() => {
     let cancelled = false
@@ -29,17 +35,105 @@ function RecommendedContent() {
       return
     }
 
-    contractApi.get_recommended_contracts(page * PAGE_SIZE, PAGE_SIZE, token)
+    contractApi.get_recommended_contracts(null, PAGE_SIZE, token)
       .then(res => {
         if (cancelled) return
         setContracts(res.contracts ?? [])
         setTotal(res.total ?? 0)
+        setClosingSoon(res.closing_soon_count ?? 0)
+        setNextCursor(res.next_cursor)
+        setExplorerUrl(res.explorer_url ?? "/explorer")
       })
       .catch(e => { if (!cancelled) setError(e.message ?? "Erreur de chargement.") })
       .finally(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
-  }, [page])
+  }, [])
+
+  function handleLoadMore() {
+    const token = getAccessToken()
+    if (!token || !nextCursor || loadingMore) return
+    setLoadingMore(true)
+    contractApi.get_recommended_contracts(nextCursor, PAGE_SIZE, token)
+      .then(res => {
+        setContracts(cs => [...cs, ...(res.contracts ?? [])])
+        setNextCursor(res.next_cursor)
+      })
+      .catch(() => showToast("Impossible de charger la suite. Réessayez."))
+      .finally(() => setLoadingMore(false))
+  }
+
+  function handleToggleSave(contract: RecommendedContract) {
+    const token = getAccessToken()
+    if (!token) return
+    const wasSaved = savedIds.has(contract.id)
+
+    setSavedIds(ids => {
+      const next = new Set(ids)
+      wasSaved ? next.delete(contract.id) : next.add(contract.id)
+      return next
+    })
+
+    if (wasSaved) {
+      contractApi.remove_feedback(contract.id, token).catch(() => {
+        setSavedIds(ids => new Set(ids).add(contract.id))
+        showToast("Impossible de retirer des sauvegardés. Réessayez.")
+      })
+      return
+    }
+
+    contractApi.set_feedback(contract.id, "saved", token)
+      .then(() => {
+        showToast(`« ${contract.titre.slice(0, 60)} » ajouté aux sauvegardés.`, {
+          actionLabel: "Annuler",
+          onAction: () => {
+            setSavedIds(ids => { const next = new Set(ids); next.delete(contract.id); return next })
+            contractApi.remove_feedback(contract.id, token).catch(() => {})
+          },
+        })
+      })
+      .catch(() => {
+        setSavedIds(ids => { const next = new Set(ids); next.delete(contract.id); return next })
+        showToast("Impossible de sauvegarder ce contrat. Réessayez.")
+      })
+  }
+
+  function handleNotRelevant(contract: RecommendedContract) {
+    const token = getAccessToken()
+    if (!token) return
+    const index = contracts.findIndex(c => c.id === contract.id)
+    const wasClosingSoon = isClosingSoon(daysLeft(contract.date_fermeture))
+
+    setContracts(cs => cs.filter(c => c.id !== contract.id))
+    setTotal(t => Math.max(0, t - 1))
+    if (wasClosingSoon) setClosingSoon(n => Math.max(0, n - 1))
+
+    const restore = () => {
+      setContracts(cs => {
+        if (cs.some(c => c.id === contract.id)) return cs
+        const next = [...cs]
+        next.splice(Math.min(index, next.length), 0, contract)
+        return next
+      })
+      setTotal(t => t + 1)
+      if (wasClosingSoon) setClosingSoon(n => n + 1)
+    }
+
+    contractApi.set_feedback(contract.id, "not_relevant", token)
+      .then(() => {
+        showToast(`« ${contract.titre.slice(0, 60)} » masqué des recommandations.`, {
+          actionLabel: "Annuler",
+          onAction: () => {
+            restore()
+            contractApi.remove_feedback(contract.id, token).catch(() => {})
+          },
+        })
+      })
+      .catch(() => {
+        restore()
+        showToast("Impossible de masquer ce contrat. Réessayez.")
+      })
+  }
 
   return (
     <div style={{ padding: "32px 32px 64px", fontFamily: "'Outfit', system-ui, sans-serif" }}>
@@ -56,29 +150,35 @@ function RecommendedContent() {
               background: "rgba(0,179,169,0.1)", padding: "3px 12px",
               borderRadius: 20,
             }}>
-              {total.toLocaleString("fr-CA")} résultat{total !== 1 ? "s" : ""}
+              {total > 50
+                ? `${Math.min(contracts.length, 50).toLocaleString("fr-CA")} des 50 meilleurs sur ${total.toLocaleString("fr-CA")}`
+                : `${total.toLocaleString("fr-CA")} résultat${total !== 1 ? "s" : ""}`}
             </span>
           )}
         </div>
         <p style={{ fontSize: 14, color: "#4a6a6a" }}>
           Classés selon la compatibilité avec votre profil d'entreprise. Les contrats expirés ne sont jamais affichés.
+          {" "}Cliquez sur le badge de pertinence d'une carte pour voir le détail du score.
         </p>
       </div>
 
-      {/* Score legend */}
-      <div style={{
-        display: "flex", flexWrap: "wrap", gap: 14,
-        background: "white", border: "1.5px solid #dce8e8", borderRadius: 14,
-        padding: "14px 20px", marginBottom: 24, fontSize: 12.5, color: "#4a6a6a",
-      }}>
-        <span style={{ fontWeight: 600, color: "#1b2a4a" }}>Score de pertinence :</span>
-        <span><b style={{ color: "#1b2a4a" }}>+35</b> domaine d'expertise</span>
-        <span><b style={{ color: "#1b2a4a" }}>+25</b> secteur d'activité</span>
-        <span><b style={{ color: "#1b2a4a" }}>+20</b> région</span>
-        <span><b style={{ color: "#1b2a4a" }}>+15</b> type de contrat</span>
-        <span><b style={{ color: "#1b2a4a" }}>+5</b> avis réservé aux PME</span>
-        <span style={{ color: "#8ba5a5" }}>(secteur ou expertise requis pour apparaître)</span>
-      </div>
+      {/* Closing-soon pinned banner */}
+      {!loading && closingSoon > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10,
+          background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 12,
+          padding: "12px 18px", marginBottom: 16, fontSize: 13.5, color: "#b91c1c", fontWeight: 600,
+        }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 22, height: 22, borderRadius: "50%", background: "#dc2626", color: "white",
+            fontSize: 11, fontWeight: 700, flexShrink: 0,
+          }}>
+            !
+          </span>
+          {closingSoon} avis compatible{closingSoon !== 1 ? "s" : ""} ferme{closingSoon !== 1 ? "nt" : ""} dans les 7 prochains jours.
+        </div>
+      )}
 
       {/* Contract list */}
       {error ? (
@@ -117,49 +217,50 @@ function RecommendedContent() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {contracts.map(c => <ContractCard key={c.id} c={c} matchScore={c.match_score} />)}
+          {contracts.map(c => (
+            <ContractCard
+              key={c.id}
+              c={c}
+              matchScore={c.match_score}
+              scoreBreakdown={c.score_breakdown}
+              saved={savedIds.has(c.id)}
+              onToggleSave={() => handleToggleSave(c)}
+              onNotRelevant={() => handleNotRelevant(c)}
+            />
+          ))}
         </div>
       )}
 
-      {/* Pagination */}
-      {!loading && contracts.length > 0 && (
+      {/* Load more (keyset, capped at the 50 best) */}
+      {!loading && contracts.length > 0 && nextCursor && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 28 }}>
+          <button
+            type="button"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            style={{
+              padding: "10px 28px", border: "1.5px solid #dce8e8", borderRadius: 10,
+              fontSize: 13.5, fontFamily: "inherit", fontWeight: 600,
+              color: "#1b2a4a", background: "white",
+              cursor: loadingMore ? "wait" : "pointer",
+            }}
+          >
+            {loadingMore ? "Chargement…" : `Charger plus (${contracts.length} / ${Math.min(total, 50)})`}
+          </button>
+        </div>
+      )}
+
+      {/* Footer: rest of the compatible results live in the Explorateur, not diluted here */}
+      {!loading && !nextCursor && remainingInExplorer > 0 && (
         <div style={{
-          display: "flex", alignItems: "center", justifyContent: "center",
-          gap: 12, marginTop: 32,
+          textAlign: "center", marginTop: 28, padding: "18px 24px",
+          background: "white", border: "1.5px solid #dce8e8", borderRadius: 14,
+          fontSize: 13.5, color: "#4a6a6a",
         }}>
-          <button
-            type="button"
-            onClick={() => setPage(p => p - 1)}
-            disabled={page === 0}
-            style={{
-              padding: "9px 20px", border: "1.5px solid #dce8e8", borderRadius: 10,
-              fontSize: 13, fontFamily: "inherit", fontWeight: 500,
-              color: page === 0 ? "#c0d4d4" : "#1b2a4a",
-              background: "white", cursor: page === 0 ? "not-allowed" : "pointer",
-              transition: "border-color 0.15s",
-            }}
-          >
-            ← Précédent
-          </button>
-
-          <span style={{ fontSize: 13, color: "#4a6a6a", fontWeight: 500, minWidth: 120, textAlign: "center" }}>
-            Page {page + 1} sur {totalPages}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setPage(p => p + 1)}
-            disabled={page >= totalPages - 1}
-            style={{
-              padding: "9px 20px", border: "1.5px solid #dce8e8", borderRadius: 10,
-              fontSize: 13, fontFamily: "inherit", fontWeight: 500,
-              color: page >= totalPages - 1 ? "#c0d4d4" : "#1b2a4a",
-              background: "white", cursor: page >= totalPages - 1 ? "not-allowed" : "pointer",
-              transition: "border-color 0.15s",
-            }}
-          >
-            Suivant →
-          </button>
+          Voir les {remainingInExplorer.toLocaleString("fr-CA")} autres avis compatibles dans{" "}
+          <Link href={explorerUrl} style={{ color: "#00B3A9", fontWeight: 700, textDecoration: "none" }}>
+            l'Explorateur →
+          </Link>
         </div>
       )}
     </div>

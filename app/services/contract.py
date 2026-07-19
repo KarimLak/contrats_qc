@@ -1,15 +1,36 @@
+from typing import Optional
+from urllib.parse import urlencode
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.repositories.contract import (
     get_contracts_list, get_contracts_count, get_contract_by_id,
-    get_recommended_contracts_list, get_recommended_contracts_count,
+    get_recommended_contracts_page, get_recommended_contracts_count,
+    get_recommended_contracts_closing_soon_count, RECOMMENDED_PAGE_CAP,
+)
+from app.repositories.feedback import (
+    upsert_feedback, delete_feedback, get_saved_contracts_list, get_saved_contracts_count,
 )
 from app.repositories.profile import business_profile
 from app.repositories.user import get_user
+from app.models.profile import BusinessProfile
 from app.schemas.contract import (
     ContractFilter, ContractFilterResponse, ContractResponse, ContractSortField, SortOrder,
-    RecommendedContract, RecommendedContractsResponse,
+    RecommendedContract, RecommendedContractsResponse, ScoreBreakdown,
+    ContractFeedbackResponse, FeedbackAction, SavedContract, SavedContractsResponse,
 )
+
+# Only region is used to pre-filter the Explorateur link (not nature_contrat
+# or categorie): recommendations qualify on sector OR expertise, but the
+# Explorateur's filters AND across fields — combining both there would show
+# a strict subset of what "compatible" means here, undershooting the count
+# promised by the "voir les N autres avis" footer instead of just being a
+# reasonable superset starting point.
+def _build_explorer_url(profile: BusinessProfile) -> str:
+    params = [("statut", "Publié")]
+    for region in (profile.region or []):
+        params.append(("region", region))
+    return f"/explorer?{urlencode(params)}"
 
 def get_contracts(payload: ContractFilter, skip: int, limit: int, sort_by: ContractSortField, sort_order: SortOrder, db: Session) -> ContractFilterResponse:
     data = payload.model_dump(exclude_none=True)
@@ -20,7 +41,7 @@ def get_contracts(payload: ContractFilter, skip: int, limit: int, sort_by: Contr
 def get_contract(contract_id: int, db: Session):
     return get_contract_by_id(contract_id, db)
 
-def get_recommended_contracts(username: str, skip: int, limit: int, db: Session) -> RecommendedContractsResponse:
+def get_recommended_contracts(username: str, cursor: Optional[str], limit: int, db: Session) -> RecommendedContractsResponse:
     user = get_user(username, db)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -29,12 +50,75 @@ def get_recommended_contracts(username: str, skip: int, limit: int, db: Session)
     if profile is None:
         raise HTTPException(status_code=404, detail="Business profile not found")
 
-    total = get_recommended_contracts_count(profile, db)
-    rows = get_recommended_contracts_list(profile, skip, limit, db)
+    total = get_recommended_contracts_count(profile, user.id, db)
+    closing_soon_count = get_recommended_contracts_closing_soon_count(profile, user.id, db)
+    rows, next_cursor = get_recommended_contracts_page(profile, user.id, cursor, limit, db)
+
     contracts = [
-        RecommendedContract(**ContractResponse.model_validate(contract).model_dump(), match_score=score)
-        for contract, score in rows
+        RecommendedContract(
+            id=row.Contract.id,
+            titre=row.Contract.titre,
+            organisation=row.Contract.organisation,
+            statut=row.Contract.statut,
+            nature_contrat=row.Contract.nature_contrat,
+            categorie=row.Contract.categorie,
+            region=row.Contract.region,
+            type_avis=row.Contract.type_avis,
+            date_publication=row.Contract.date_publication,
+            date_fermeture=row.Contract.date_fermeture,
+            match_score=row.base_score,
+            score_breakdown=ScoreBreakdown(
+                expertise=row.expertise_matched,
+                sector=row.sector_matched,
+                region=row.region_matched,
+                contract_type=row.contract_type_matched,
+                sme_reserved=row.sme_matched,
+            ),
+        )
+        for row in rows
     ]
-    return RecommendedContractsResponse(skip=skip, limit=limit, total=total, contracts=contracts)
+    return RecommendedContractsResponse(
+        limit=limit,
+        total=total,
+        capped_total=min(total, RECOMMENDED_PAGE_CAP),
+        closing_soon_count=closing_soon_count,
+        next_cursor=next_cursor,
+        explorer_url=_build_explorer_url(profile),
+        contracts=contracts,
+    )
+
+
+def set_contract_feedback(username: str, contract_id: int, action: FeedbackAction, db: Session) -> ContractFeedbackResponse:
+    user = get_user(username, db)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if get_contract_by_id(contract_id, db) is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    row = upsert_feedback(user.id, contract_id, action.value, db)
+    return ContractFeedbackResponse.model_validate(row)
+
+
+def remove_contract_feedback(username: str, contract_id: int, db: Session) -> None:
+    user = get_user(username, db)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not delete_feedback(user.id, contract_id, db):
+        raise HTTPException(status_code=404, detail="Feedback not found")
+
+
+def get_saved_contracts(username: str, skip: int, limit: int, db: Session) -> SavedContractsResponse:
+    user = get_user(username, db)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    total = get_saved_contracts_count(user.id, db)
+    rows = get_saved_contracts_list(user.id, skip, limit, db)
+    contracts = [
+        SavedContract(**ContractResponse.model_validate(contract).model_dump(), saved_at=saved_at)
+        for contract, saved_at in rows
+    ]
+    return SavedContractsResponse(skip=skip, limit=limit, total=total, contracts=contracts)
 
 

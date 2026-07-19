@@ -111,6 +111,16 @@ export function ChatIcon({ size = 18, color = "#009991" }: IconProps) {
   )
 }
 
+export function EyeOffIcon({ size = 18, color = "#8ba5a5" }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M3 12s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7Z" stroke={color} strokeWidth="1.6" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="2.6" stroke={color} strokeWidth="1.6" />
+      <path d="M3.5 3.5l17 17" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function ClockIcon({ size = 14, color = "currentColor" }: IconProps) {
   return (
     <svg {...base(size)}>

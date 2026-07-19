@@ -3,6 +3,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useCallback, useEffect, type ReactNode } from "react"
 import { useAuth } from "@/context/AuthContext"
+import { ToastProvider } from "@/components/Toast"
 
 const NAV: ({ href: string; label: string; pro: boolean } | { divider: true })[] = [
   { href: "/dashboard",   label: "Tableau de bord", pro: false },
@@ -43,6 +44,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const subText  = subscription === "user" ? "rgba(255,255,255,0.5)" : "white"
 
   return (
+    <ToastProvider>
     <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Outfit', system-ui, sans-serif" }}>
 
       {/* ── Sidebar ────────────────────────────────────────────────── */}
@@ -122,5 +124,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
     </div>
+    </ToastProvider>
   )
 }
